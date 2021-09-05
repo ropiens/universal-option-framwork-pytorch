@@ -49,9 +49,7 @@ def test():
     exploration_state_noise = np.array([0.02, 0.01])
 
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
-    threshold = np.array(
-        [0.01, 0.02]
-    )  # threshold value to check if goal state is achieved
+    threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
     # UOF parameters:
     k_level = 1  # num of levels in hierarchy
@@ -113,11 +111,7 @@ def test():
         state = env.reset()
         agent.run_UOF(env, k_level - 1, state, goal_state, True)
 
-        print(
-            "Episode: {}\t Reward: {}\t len: {}".format(
-                i_episode, agent.reward, agent.timestep
-            )
-        )
+        print("Episode: {}\t Reward: {}\t len: {}".format(i_episode, agent.reward, agent.timestep))
 
     env.close()
 

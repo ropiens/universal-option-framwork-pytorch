@@ -22,9 +22,7 @@ class Actor(nn.Module):
         self.offset = offset
 
     def forward(self, state, goal):
-        return (
-            self.actor(torch.cat([state, goal], 1)) * self.action_bounds
-        ) + self.offset
+        return (self.actor(torch.cat([state, goal], 1)) * self.action_bounds) + self.offset
 
 
 class Critic(nn.Module):
@@ -66,9 +64,7 @@ class DDPG:
 
         for i in range(n_iter):
             # Sample a batch of transitions from replay buffer:
-            state, action, reward, next_state, goal, gamma, done = buffer.sample(
-                batch_size
-            )
+            state, action, reward, next_state, goal, gamma, done = buffer.sample(batch_size)
 
             # convert np arrays into tensors
             state = torch.FloatTensor(state).to(device)
@@ -105,9 +101,5 @@ class DDPG:
         torch.save(self.critic.state_dict(), "%s/%s_crtic.pth" % (directory, name))
 
     def load(self, directory, name):
-        self.actor.load_state_dict(
-            torch.load("%s/%s_actor.pth" % (directory, name), map_location="cpu")
-        )
-        self.critic.load_state_dict(
-            torch.load("%s/%s_crtic.pth" % (directory, name), map_location="cpu")
-        )
+        self.actor.load_state_dict(torch.load("%s/%s_actor.pth" % (directory, name), map_location="cpu"))
+        self.critic.load_state_dict(torch.load("%s/%s_crtic.pth" % (directory, name), map_location="cpu"))

@@ -23,9 +23,14 @@ class UOF:
         lr,
     ):
 
-        # adding lowest level
-        self.UOF = [DDPG(state_dim, action_dim, action_bounds, action_offset, lr, H)]
-        self.replay_buffer = [ReplayBuffer()]
+        """Inter-Option/High-Level policies - DIOL"""
+        # opt, optor refer to high-level policy
+        # self.optor
+
+        """Intra-Option/Low-Level policies - DDPG + HER"""
+        # act, actor refer to low-level policy
+        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, H)
+        self.replay_buffer = ReplayBuffer()
 
         # set some parameters
         self.H = H
@@ -66,7 +71,7 @@ class UOF:
                 return False
         return True
 
-    def run_UOF(self, env, state, goal, is_subgoal_test):
+    def run_UOF(self, env, state, goal):
         next_state = None
         done = None
         goal_transitions = []
@@ -76,26 +81,9 @@ class UOF:
 
         # H attempts
         for _ in range(self.H):
-            # if this is a subgoal test, then next/lower level goal has to be a subgoal test
-            is_next_subgoal_test = is_subgoal_test
-
-            action = self.UOF[0].select_action(state, goal)
+            action = self.actor.select_action(state, goal)
 
             #   <================ low level policy ================>
-            # add noise or take random action if not subgoal testing
-            if not is_subgoal_test:
-                if np.random.random_sample() > 0.2:
-                    action = action + np.random.normal(
-                        0, self.exploration_action_noise
-                    )
-                    action = action.clip(
-                        self.action_clip_low, self.action_clip_high
-                    )
-                else:
-                    action = np.random.uniform(
-                        self.action_clip_low, self.action_clip_high
-                    )
-
             # take primitive action
             next_state, rew, done, _ = env.step(action)
 
@@ -116,18 +104,12 @@ class UOF:
 
             # hindsight action transition
             if goal_achieved:
-                self.replay_buffer[0].add(
-                    (state, action, 0.0, next_state, goal, 0.0, float(done))
-                )
+                self.replay_buffer.add((state, action, 0.0, next_state, goal, 0.0, float(done)))
             else:
-                self.replay_buffer[0].add(
-                    (state, action, -1.0, next_state, goal, self.gamma, float(done))
-                )
+                self.replay_buffer.add((state, action, -1.0, next_state, goal, self.gamma, float(done)))
 
             # copy for goal transition
-            goal_transitions.append(
-                [state, action, -1.0, next_state, None, self.gamma, float(done)]
-            )
+            goal_transitions.append([state, action, -1.0, next_state, None, self.gamma, float(done)])
 
             state = next_state
 
@@ -143,15 +125,15 @@ class UOF:
         for transition in goal_transitions:
             # last state is goal for all transitions
             transition[4] = next_state
-            self.replay_buffer[0].add(tuple(transition))
+            self.replay_buffer.add(tuple(transition))
 
         return next_state, done
 
     def update(self, n_iter, batch_size):
-        self.UOF[0].update(self.replay_buffer[0], n_iter, batch_size)
+        self.actor.update(self.replay_buffer, n_iter, batch_size)
 
     def save(self, directory, name):
-        self.UOF[0].save(directory, name + "_level_{}".format(0))
+        self.actor.save(directory, name + "_level_{}".format(0))
 
     def load(self, directory, name):
-        self.UOF[0].load(directory, name + "_level_{}".format(0))
+        self.actor.load(directory, name + "_level_{}".format(0))

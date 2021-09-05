@@ -48,9 +48,7 @@ def train():
     exploration_state_noise = np.array([0.02, 0.01])
 
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
-    threshold = np.array(
-        [0.01, 0.02]
-    )  # threshold value to check if goal state is achieved
+    threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
     # UOF parameters:
     k_level = 1  # num of levels in hierarchy
@@ -109,7 +107,7 @@ def train():
 
         state = env.reset()
         # collecting experience in environment
-        last_state, done = agent.run_UOF(env, state, goal_state, False)
+        last_state, done = agent.run_UOF(env, state, goal_state)
 
         if agent.check_goal(last_state, goal_state, threshold):
             print("################ Solved! ################ ")

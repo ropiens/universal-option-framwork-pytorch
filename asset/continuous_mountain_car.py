@@ -31,9 +31,7 @@ class Continuous_MountainCarEnv(gym.Env):
         self.min_position = -1.2
         self.max_position = 0.6
         self.max_speed = 0.07
-        self.goal_position = (
-            0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
-        )
+        self.goal_position = 0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
         self.power = 0.0015
 
         self.low_state = np.array([self.min_position, -self.max_speed])
@@ -41,12 +39,8 @@ class Continuous_MountainCarEnv(gym.Env):
 
         self.viewer = None
 
-        self.action_space = spaces.Box(
-            low=self.min_action, high=self.max_action, shape=(1,), dtype=np.float32
-        )
-        self.observation_space = spaces.Box(
-            low=self.low_state, high=self.high_state, dtype=np.float32
-        )
+        self.action_space = spaces.Box(low=self.min_action, high=self.max_action, shape=(1,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=self.low_state, high=self.high_state, dtype=np.float32)
 
         self.seed()
         self.reset()
@@ -125,15 +119,11 @@ class Continuous_MountainCarEnv(gym.Env):
             self.viewer.add_geom(car)
             frontwheel = rendering.make_circle(carheight / 2.5)
             frontwheel.set_color(0.5, 0.5, 0.5)
-            frontwheel.add_attr(
-                rendering.Transform(translation=(carwidth / 4, clearance))
-            )
+            frontwheel.add_attr(rendering.Transform(translation=(carwidth / 4, clearance)))
             frontwheel.add_attr(self.cartrans)
             self.viewer.add_geom(frontwheel)
             backwheel = rendering.make_circle(carheight / 2.5)
-            backwheel.add_attr(
-                rendering.Transform(translation=(-carwidth / 4, clearance))
-            )
+            backwheel.add_attr(rendering.Transform(translation=(-carwidth / 4, clearance)))
             backwheel.add_attr(self.cartrans)
             backwheel.set_color(0.5, 0.5, 0.5)
             self.viewer.add_geom(backwheel)
@@ -142,16 +132,12 @@ class Continuous_MountainCarEnv(gym.Env):
             flagy2 = flagy1 + 50
             flagpole = rendering.Line((flagx, flagy1), (flagx, flagy2))
             self.viewer.add_geom(flagpole)
-            flag = rendering.FilledPolygon(
-                [(flagx, flagy2), (flagx, flagy2 - 10), (flagx + 25, flagy2 - 5)]
-            )
+            flag = rendering.FilledPolygon([(flagx, flagy2), (flagx, flagy2 - 10), (flagx + 25, flagy2 - 5)])
             flag.set_color(0.8, 0.8, 0)
             self.viewer.add_geom(flag)
 
         pos = self.state[0]
-        self.cartrans.set_translation(
-            (pos - self.min_position) * scale, self._height(pos) * scale
-        )
+        self.cartrans.set_translation((pos - self.min_position) * scale, self._height(pos) * scale)
         self.cartrans.set_rotation(math.cos(3 * pos))
 
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
@@ -187,15 +173,11 @@ class Continuous_MountainCarEnv(gym.Env):
             self.viewer.add_geom(car)
             frontwheel = rendering.make_circle(carheight / 2.5)
             frontwheel.set_color(0.5, 0.5, 0.5)
-            frontwheel.add_attr(
-                rendering.Transform(translation=(carwidth / 4, clearance))
-            )
+            frontwheel.add_attr(rendering.Transform(translation=(carwidth / 4, clearance)))
             frontwheel.add_attr(self.cartrans)
             self.viewer.add_geom(frontwheel)
             backwheel = rendering.make_circle(carheight / 2.5)
-            backwheel.add_attr(
-                rendering.Transform(translation=(-carwidth / 4, clearance))
-            )
+            backwheel.add_attr(rendering.Transform(translation=(-carwidth / 4, clearance)))
             backwheel.add_attr(self.cartrans)
             backwheel.set_color(0.5, 0.5, 0.5)
             self.viewer.add_geom(backwheel)
@@ -223,28 +205,20 @@ class Continuous_MountainCarEnv(gym.Env):
             flagy2 = flagy1 + 50
             flagpole = rendering.Line((flagx, flagy1), (flagx, flagy2))
             self.viewer.add_geom(flagpole)
-            flag = rendering.FilledPolygon(
-                [(flagx, flagy2), (flagx, flagy2 - 10), (flagx + 25, flagy2 - 5)]
-            )
+            flag = rendering.FilledPolygon([(flagx, flagy2), (flagx, flagy2 - 10), (flagx + 25, flagy2 - 5)])
             flag.set_color(0.8, 0.8, 0)
             self.viewer.add_geom(flag)
 
         pos = self.state[0]
-        self.cartrans.set_translation(
-            (pos - self.min_position) * scale, self._height(pos) * scale
-        )
+        self.cartrans.set_translation((pos - self.min_position) * scale, self._height(pos) * scale)
         self.cartrans.set_rotation(math.cos(3 * pos))
 
         pos1 = goal[0]
-        self.cartrans1.set_translation(
-            (pos1 - self.min_position) * scale, self._height(pos1) * scale
-        )
+        self.cartrans1.set_translation((pos1 - self.min_position) * scale, self._height(pos1) * scale)
         self.cartrans1.set_rotation(math.cos(3 * pos1))
 
         pos2 = end_goal[0]
-        self.cartrans2.set_translation(
-            (pos2 - self.min_position) * scale, self._height(pos2) * scale
-        )
+        self.cartrans2.set_translation((pos2 - self.min_position) * scale, self._height(pos2) * scale)
         self.cartrans2.set_rotation(math.cos(3 * pos2))
 
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
@@ -280,15 +254,11 @@ class Continuous_MountainCarEnv(gym.Env):
             self.viewer.add_geom(car)
             frontwheel = rendering.make_circle(carheight / 2.5)
             frontwheel.set_color(0.5, 0.5, 0.5)
-            frontwheel.add_attr(
-                rendering.Transform(translation=(carwidth / 4, clearance))
-            )
+            frontwheel.add_attr(rendering.Transform(translation=(carwidth / 4, clearance)))
             frontwheel.add_attr(self.cartrans)
             self.viewer.add_geom(frontwheel)
             backwheel = rendering.make_circle(carheight / 2.5)
-            backwheel.add_attr(
-                rendering.Transform(translation=(-carwidth / 4, clearance))
-            )
+            backwheel.add_attr(rendering.Transform(translation=(-carwidth / 4, clearance)))
             backwheel.add_attr(self.cartrans)
             backwheel.set_color(0.5, 0.5, 0.5)
             self.viewer.add_geom(backwheel)
@@ -325,34 +295,24 @@ class Continuous_MountainCarEnv(gym.Env):
             flagy2 = flagy1 + 50
             flagpole = rendering.Line((flagx, flagy1), (flagx, flagy2))
             self.viewer.add_geom(flagpole)
-            flag = rendering.FilledPolygon(
-                [(flagx, flagy2), (flagx, flagy2 - 10), (flagx + 25, flagy2 - 5)]
-            )
+            flag = rendering.FilledPolygon([(flagx, flagy2), (flagx, flagy2 - 10), (flagx + 25, flagy2 - 5)])
             flag.set_color(0.8, 0.8, 0)
             self.viewer.add_geom(flag)
 
         pos = self.state[0]
-        self.cartrans.set_translation(
-            (pos - self.min_position) * scale, self._height(pos) * scale
-        )
+        self.cartrans.set_translation((pos - self.min_position) * scale, self._height(pos) * scale)
         self.cartrans.set_rotation(math.cos(3 * pos))
 
         pos1 = goal1[0]
-        self.cartrans1.set_translation(
-            (pos1 - self.min_position) * scale, self._height(pos1) * scale
-        )
+        self.cartrans1.set_translation((pos1 - self.min_position) * scale, self._height(pos1) * scale)
         self.cartrans1.set_rotation(math.cos(3 * pos1))
 
         pos2 = goal2[0]
-        self.cartrans2.set_translation(
-            (pos2 - self.min_position) * scale, self._height(pos2) * scale
-        )
+        self.cartrans2.set_translation((pos2 - self.min_position) * scale, self._height(pos2) * scale)
         self.cartrans2.set_rotation(math.cos(3 * pos2))
 
         pos3 = end_goal[0]
-        self.cartrans3.set_translation(
-            (pos3 - self.min_position) * scale, self._height(pos3) * scale
-        )
+        self.cartrans3.set_translation((pos3 - self.min_position) * scale, self._height(pos3) * scale)
         self.cartrans3.set_rotation(math.cos(3 * pos3))
 
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
