@@ -1,7 +1,7 @@
+from gym.envs.registration import register
+
 from asset.continuous_mountain_car import Continuous_MountainCarEnv
 from asset.pendulum import PendulumEnv
-
-from gym.envs.registration import register
 
 register(
     id="MountainCarContinuous-h-v1",
