@@ -26,7 +26,7 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, H):
+    def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
         # UVFA critic
         self.critic = nn.Sequential(
@@ -37,20 +37,18 @@ class Critic(nn.Module):
             nn.Linear(64, 1),
             nn.Sigmoid(),
         )
-        self.H = H
 
     def forward(self, state, action, goal):
-        # rewards are in range [-H, 0]
-        return -self.critic(torch.cat([state, action, goal], 1)) * self.H
+        return -self.critic(torch.cat([state, action, goal], 1))
 
 
 class DDPG:
-    def __init__(self, state_dim, action_dim, action_bounds, offset, lr, H):
+    def __init__(self, state_dim, action_dim, action_bounds, offset, lr):
 
         self.actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
 
-        self.critic = Critic(state_dim, action_dim, H).to(device)
+        self.critic = Critic(state_dim, action_dim).to(device)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
 
         self.mseLoss = torch.nn.MSELoss()

@@ -29,7 +29,7 @@ class UOF:
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
-        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, H)
+        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr)
         self.replay_buffer = ReplayBuffer()
 
         # set some parameters
@@ -46,7 +46,6 @@ class UOF:
 
     def set_parameters(
         self,
-        lamda,
         gamma,
         action_clip_low,
         action_clip_high,
@@ -56,7 +55,6 @@ class UOF:
         exploration_state_noise,
     ):
 
-        self.lamda = lamda
         self.gamma = gamma
         self.action_clip_low = action_clip_low
         self.action_clip_high = action_clip_high

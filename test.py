@@ -52,7 +52,6 @@ def test():
     threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
     # UOF parameters:
-    k_level = 1  # num of levels in hierarchy
     H = 20  # time horizon to achieve subgoal
     lamda = 0.3  # subgoal testing parameter
 
@@ -63,7 +62,7 @@ def test():
     lr = 0.001
 
     # save trained models
-    directory = "{}/preTrained/{}/{}level/".format(os.getcwd(), env_name, k_level)
+    directory = "{}/preTrained/{}/".format(os.getcwd(), env_name)
     filename = "UOF_{}".format(env_name)
     #########################################################
 
