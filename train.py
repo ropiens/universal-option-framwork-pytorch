@@ -76,7 +76,6 @@ def train():
 
     # creating UOF agent and setting parameters
     agent = UOF(
-        k_level,
         H,
         state_dim,
         action_dim,
@@ -110,7 +109,7 @@ def train():
 
         state = env.reset()
         # collecting experience in environment
-        last_state, done = agent.run_UOF(env, k_level - 1, state, goal_state, False)
+        last_state, done = agent.run_UOF(env, state, goal_state, False)
 
         if agent.check_goal(last_state, goal_state, threshold):
             print("################ Solved! ################ ")

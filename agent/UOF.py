@@ -11,7 +11,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class UOF:
     def __init__(
         self,
-        k_level,
         H,
         state_dim,
         action_dim,
@@ -28,15 +27,7 @@ class UOF:
         self.UOF = [DDPG(state_dim, action_dim, action_bounds, action_offset, lr, H)]
         self.replay_buffer = [ReplayBuffer()]
 
-        # adding remaining levels
-        for _ in range(k_level - 1):
-            self.UOF.append(
-                DDPG(state_dim, state_dim, state_bounds, state_offset, lr, H)
-            )
-            self.replay_buffer.append(ReplayBuffer())
-
         # set some parameters
-        self.k_level = k_level
         self.H = H
         self.action_dim = action_dim
         self.state_dim = state_dim
@@ -44,7 +35,7 @@ class UOF:
         self.render = render
 
         # logging parameters
-        self.goals = [None] * self.k_level
+        self.goals = [None]
         self.reward = 0
         self.timestep = 0
 
@@ -75,90 +66,48 @@ class UOF:
                 return False
         return True
 
-    def run_UOF(self, env, i_level, state, goal, is_subgoal_test):
+    def run_UOF(self, env, state, goal, is_subgoal_test):
         next_state = None
         done = None
         goal_transitions = []
 
         # logging updates
-        self.goals[i_level] = goal
+        self.goals[0] = goal
 
         # H attempts
         for _ in range(self.H):
             # if this is a subgoal test, then next/lower level goal has to be a subgoal test
             is_next_subgoal_test = is_subgoal_test
 
-            action = self.UOF[i_level].select_action(state, goal)
-
-            #   <================ high level policy ================>
-            if i_level > 0:
-                # add noise or take random action if not subgoal testing
-                if not is_subgoal_test:
-                    if np.random.random_sample() > 0.2:
-                        action = action + np.random.normal(
-                            0, self.exploration_state_noise
-                        )
-                        action = action.clip(self.state_clip_low, self.state_clip_high)
-                    else:
-                        action = np.random.uniform(
-                            self.state_clip_low, self.state_clip_high
-                        )
-
-                # Determine whether to test subgoal (action)
-                if np.random.random_sample() < self.lamda:
-                    is_next_subgoal_test = True
-
-                # Pass subgoal to lower level
-                next_state, done = self.run_HAC(
-                    env, i_level - 1, state, action, is_next_subgoal_test
-                )
-
-                # if subgoal was tested but not achieved, add subgoal testing transition
-                if is_next_subgoal_test and not self.check_goal(
-                    action, next_state, self.threshold
-                ):
-                    self.replay_buffer[i_level].add(
-                        (state, action, -self.H, next_state, goal, 0.0, float(done))
-                    )
-
-                # for hindsight action transition
-                action = next_state
+            action = self.UOF[0].select_action(state, goal)
 
             #   <================ low level policy ================>
-            else:
-                # add noise or take random action if not subgoal testing
-                if not is_subgoal_test:
-                    if np.random.random_sample() > 0.2:
-                        action = action + np.random.normal(
-                            0, self.exploration_action_noise
-                        )
-                        action = action.clip(
-                            self.action_clip_low, self.action_clip_high
-                        )
-                    else:
-                        action = np.random.uniform(
-                            self.action_clip_low, self.action_clip_high
-                        )
+            # add noise or take random action if not subgoal testing
+            if not is_subgoal_test:
+                if np.random.random_sample() > 0.2:
+                    action = action + np.random.normal(
+                        0, self.exploration_action_noise
+                    )
+                    action = action.clip(
+                        self.action_clip_low, self.action_clip_high
+                    )
+                else:
+                    action = np.random.uniform(
+                        self.action_clip_low, self.action_clip_high
+                    )
 
-                # take primitive action
-                next_state, rew, done, _ = env.step(action)
+            # take primitive action
+            next_state, rew, done, _ = env.step(action)
 
-                if self.render:
-                    if self.k_level == 1:
-                        env.render()
-                    elif self.k_level == 2:
-                        env.unwrapped.render_goal(self.goals[0], self.goals[1])
-                    elif self.k_level == 3:
-                        env.unwrapped.render_goal_2(
-                            self.goals[0], self.goals[1], self.goals[2]
-                        )
+            if self.render:
+                env.render()
 
-                    for _ in range(1000000):
-                        continue
+                for _ in range(1000000):
+                    continue
 
-                # this is for logging
-                self.reward += rew
-                self.timestep += 1
+            # this is for logging
+            self.reward += rew
+            self.timestep += 1
 
             #   <================ finish one step/transition ================>
 
@@ -167,11 +116,11 @@ class UOF:
 
             # hindsight action transition
             if goal_achieved:
-                self.replay_buffer[i_level].add(
+                self.replay_buffer[0].add(
                     (state, action, 0.0, next_state, goal, 0.0, float(done))
                 )
             else:
-                self.replay_buffer[i_level].add(
+                self.replay_buffer[0].add(
                     (state, action, -1.0, next_state, goal, self.gamma, float(done))
                 )
 
@@ -194,18 +143,15 @@ class UOF:
         for transition in goal_transitions:
             # last state is goal for all transitions
             transition[4] = next_state
-            self.replay_buffer[i_level].add(tuple(transition))
+            self.replay_buffer[0].add(tuple(transition))
 
         return next_state, done
 
     def update(self, n_iter, batch_size):
-        for i in range(self.k_level):
-            self.UOF[i].update(self.replay_buffer[i], n_iter, batch_size)
+        self.UOF[0].update(self.replay_buffer[0], n_iter, batch_size)
 
     def save(self, directory, name):
-        for i in range(self.k_level):
-            self.UOF[i].save(directory, name + "_level_{}".format(i))
+        self.UOF[0].save(directory, name + "_level_{}".format(0))
 
     def load(self, directory, name):
-        for i in range(self.k_level):
-            self.UOF[i].load(directory, name + "_level_{}".format(i))
+        self.UOF[0].load(directory, name + "_level_{}".format(0))
