@@ -1,7 +1,8 @@
 import numpy as np
 import torch
+import time
 
-from utils import ReplayBuffer
+from utils import LowLevelHindsightReplayBuffer
 
 from .DDPG import DDPG
 
@@ -21,6 +22,7 @@ class UOF:
         state_bounds,
         state_offset,
         lr,
+        gamma,
     ):
 
         """Inter-Option/High-Level policies - DIOL"""
@@ -29,8 +31,8 @@ class UOF:
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
-        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr)
-        self.replay_buffer = ReplayBuffer()
+        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
+        self.replay_buffer = LowLevelHindsightReplayBuffer()
 
         # set some parameters
         self.H = H
@@ -46,7 +48,6 @@ class UOF:
 
     def set_parameters(
         self,
-        gamma,
         action_clip_low,
         action_clip_high,
         state_clip_low,
@@ -54,8 +55,6 @@ class UOF:
         exploration_action_noise,
         exploration_state_noise,
     ):
-
-        self.gamma = gamma
         self.action_clip_low = action_clip_low
         self.action_clip_high = action_clip_high
         self.state_clip_low = state_clip_low
@@ -72,58 +71,38 @@ class UOF:
     def run_UOF(self, env, state, goal):
         next_state = None
         done = None
-        goal_transitions = []
+        goal_achieved = False
 
         # logging updates
         self.goals[0] = goal
 
-        # H attempts
-        for _ in range(self.H):
-            action = self.actor.select_action(state, goal)
+        for t_ in range(env._max_episode_steps):
+            try:
+                if self.render:
+                    env.render()
+                    time.sleep(0.0001)
+                    
+                #   <================ low level policy ================>
+                # take primitive action
+                action = self.actor.select_action(state, goal)
 
-            #   <================ low level policy ================>
-            # take primitive action
-            next_state, rew, done, _ = env.step(action)
+                next_state, rew, done, _ = env.step(action)
 
-            if self.render:
-                env.render()
+                # this is for logging
+                self.reward += rew
+                self.timestep += 1
 
-                for _ in range(1000000):
-                    continue
+                # check if goal is achieved
+                goal_achieved = self.check_goal(next_state, goal, self.threshold)
 
-            # this is for logging
-            self.reward += rew
-            self.timestep += 1
+                self.replay_buffer.add((state, action, 0.0, next_state, goal, state, float(done)))
 
-            #   <================ finish one step/transition ================>
+                state = next_state
 
-            # check if goal is achieved
-            goal_achieved = self.check_goal(next_state, goal, self.threshold)
-
-            # hindsight action transition
-            if goal_achieved:
-                self.replay_buffer.add((state, action, 0.0, next_state, goal, 0.0, float(done)))
-            else:
-                self.replay_buffer.add((state, action, -1.0, next_state, goal, self.gamma, float(done)))
-
-            # copy for goal transition
-            goal_transitions.append([state, action, -1.0, next_state, None, self.gamma, float(done)])
-
-            state = next_state
-
-            if done or goal_achieved:
-                break
-
-        #   <================ finish H attempts ================>
-
-        # hindsight goal transition
-        # last transition reward and discount is 0
-        goal_transitions[-1][2] = 0.0
-        goal_transitions[-1][5] = 0.0
-        for transition in goal_transitions:
-            # last state is goal for all transitions
-            transition[4] = next_state
-            self.replay_buffer.add(tuple(transition))
+                if done or goal_achieved:
+                    break
+            except Exception as e:
+                print(f"exception error while run_UOF({e})")
 
         return next_state, done
 

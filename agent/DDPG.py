@@ -43,7 +43,8 @@ class Critic(nn.Module):
 
 
 class DDPG:
-    def __init__(self, state_dim, action_dim, action_bounds, offset, lr):
+    def __init__(self, state_dim, action_dim, action_bounds, offset, lr, gamma):
+        self.gamma = gamma
 
         self.actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
@@ -61,8 +62,11 @@ class DDPG:
     def update(self, buffer, n_iter, batch_size):
 
         for i in range(n_iter):
+            # modify experiences in hindsight 
+            buffer.modify()
+            
             # Sample a batch of transitions from replay buffer:
-            state, action, reward, next_state, goal, gamma, done = buffer.sample(batch_size)
+            state, action, reward, next_state, goal, achived_goal, done = buffer.sample(batch_size)
 
             # convert np arrays into tensors
             state = torch.FloatTensor(state).to(device)
@@ -70,7 +74,7 @@ class DDPG:
             reward = torch.FloatTensor(reward).reshape((batch_size, 1)).to(device)
             next_state = torch.FloatTensor(next_state).to(device)
             goal = torch.FloatTensor(goal).to(device)
-            gamma = torch.FloatTensor(gamma).reshape((batch_size, 1)).to(device)
+            achived_goal = torch.FloatTensor(achived_goal).reshape((batch_size, 1)).to(device)
             done = torch.FloatTensor(done).reshape((batch_size, 1)).to(device)
 
             # select next action
@@ -78,7 +82,7 @@ class DDPG:
 
             # Compute target Q-value:
             target_Q = self.critic(next_state, next_action, goal).detach()
-            target_Q = reward + ((1 - done) * gamma * target_Q)
+            target_Q = reward + ((1 - done) * self.gamma * target_Q)
 
             # Optimize Critic:
             critic_loss = self.mseLoss(self.critic(state, action, goal), target_Q)

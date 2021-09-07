@@ -16,7 +16,7 @@ def train():
     save_episode = 10  # keep saving every n episodes
     max_episodes = 1000  # max num of training episodes
     random_seed = 0
-    render = True
+    render = False
 
     env = gym.make(env_name)
     state_dim = env.observation_space.shape[0]
@@ -82,10 +82,10 @@ def train():
         state_bounds,
         state_offset,
         lr,
+        gamma,
     )
 
     agent.set_parameters(
-        gamma,
         action_clip_low,
         action_clip_high,
         state_clip_low,
