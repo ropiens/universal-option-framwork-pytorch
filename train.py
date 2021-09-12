@@ -20,6 +20,7 @@ def train():
 
     env = gym.make(env_name)
     state_dim = env.observation_space.shape[0]
+    option_dim = 3
     action_dim = env.action_space.shape[0]
 
     """
@@ -70,6 +71,7 @@ def train():
     # creating UOF agent and setting parameters
     agent = UOF(
         state_dim,
+        option_dim,
         action_dim,
         render,
         threshold,

@@ -3,7 +3,7 @@ import torch
 import time
 from collections import namedtuple
 
-from .utils import LowLevelHindsightReplayBuffer
+from .utils import LowLevelHindsightReplayBuffer, HighLevelHindsightReplayBuffer
 
 from .DDPG import DDPG
 from .DIOL import DIOL
@@ -42,6 +42,7 @@ class UOF:
     def __init__(
         self,
         state_dim,
+        option_dim,
         action_dim,
         render,
         threshold,
@@ -55,13 +56,15 @@ class UOF:
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
+        optor_mem_capacity = 100000
         self.optor = DIOL(state_dim, option_dim, lr, gamma)
+        self.optor_replay_buffer = HighLevelHindsightReplayBuffer(optor_mem_capacity, OPT_Tr)
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
         actor_mem_capacity = 100000
         self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
-        self.replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
+        self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
 
         # set some parameters
         self.action_dim = action_dim
@@ -108,7 +111,7 @@ class UOF:
             goal_achieved = self.check_goal(next_state, goal, self.threshold)
             reward = 0.0 if goal_achieved else -1.0
             # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
-            self.replay_buffer.store_experience(
+            self.actor_replay_buffer.store_experience(
                 new_episode,
                 state,
                 goal,
@@ -128,7 +131,7 @@ class UOF:
         return next_state, done
 
     def update(self, n_iter, batch_size):
-        self.actor.update(self.replay_buffer, n_iter, batch_size)
+        self.actor.update(self.actor_replay_buffer, n_iter, batch_size)
 
     def save(self, directory, name):
         self.actor.save(directory, name + "_level_{}".format(0))

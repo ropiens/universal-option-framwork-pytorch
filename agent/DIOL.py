@@ -32,10 +32,10 @@ class DIOL:
         self.gamma = gamma
 
         self.optor_1 = Mlp(state_dim, option_dim).to(device)
-        self.optor_optimizer_1 = optim.Adam(self.actor.parameters(), lr=lr)
+        self.optor_optimizer_1 = optim.Adam(self.optor_1.parameters(), lr=lr)
 
         self.optor_2 = Mlp(state_dim, option_dim).to(device)
-        self.optor_optimizer_2 = optim.Adam(self.actor.parameters(), lr=lr)
+        self.optor_optimizer_2 = optim.Adam(self.optor_2.parameters(), lr=lr)
 
         self.mseLoss = torch.nn.MSELoss()
 
