@@ -50,9 +50,6 @@ def train():
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
     threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
-    # UOF parameters:
-    H = 20  # time horizon to achieve subgoal
-
     # DDPG parameters:
     gamma = 0.95  # discount factor for future rewards
     n_iter = 100  # update policy n_iter times in one DDPG update
@@ -72,7 +69,6 @@ def train():
 
     # creating UOF agent and setting parameters
     agent = UOF(
-        H,
         state_dim,
         action_dim,
         render,
@@ -83,15 +79,6 @@ def train():
         state_offset,
         lr,
         gamma,
-    )
-
-    agent.set_parameters(
-        action_clip_low,
-        action_clip_high,
-        state_clip_low,
-        state_clip_high,
-        exploration_action_noise,
-        exploration_state_noise,
     )
 
     # logging file:

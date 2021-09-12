@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import time
+from collections import namedtuple
 
 from utils import LowLevelHindsightReplayBuffer
 
@@ -9,10 +10,36 @@ from .DDPG import DDPG
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+OPT_Tr = namedtuple(
+    "transition",
+    (
+        "state",
+        "desired_goal",
+        "option",
+        "next_state",
+        "achieved_goal",
+        "option_done",
+        "reward",
+        "done",
+    ),
+)
+ACT_Tr = namedtuple(
+    "transition",
+    (
+        "state",
+        "desired_goal",
+        "action",
+        "next_state",
+        "achieved_goal",
+        "reward",
+        "done",
+    ),
+)
+
+
 class UOF:
     def __init__(
         self,
-        H,
         state_dim,
         action_dim,
         render,
@@ -31,11 +58,11 @@ class UOF:
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
+        actor_mem_capacity = 100000
         self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
-        self.replay_buffer = LowLevelHindsightReplayBuffer()
+        self.replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
 
         # set some parameters
-        self.H = H
         self.action_dim = action_dim
         self.state_dim = state_dim
         self.threshold = threshold
@@ -45,22 +72,6 @@ class UOF:
         self.goals = [None]
         self.reward = 0
         self.timestep = 0
-
-    def set_parameters(
-        self,
-        action_clip_low,
-        action_clip_high,
-        state_clip_low,
-        state_clip_high,
-        exploration_action_noise,
-        exploration_state_noise,
-    ):
-        self.action_clip_low = action_clip_low
-        self.action_clip_high = action_clip_high
-        self.state_clip_low = state_clip_low
-        self.state_clip_high = state_clip_high
-        self.exploration_action_noise = exploration_action_noise
-        self.exploration_state_noise = exploration_state_noise
 
     def check_goal(self, state, goal, threshold):
         for i in range(self.state_dim):
@@ -72,37 +83,46 @@ class UOF:
         next_state = None
         done = None
         goal_achieved = False
+        new_episode = True
 
         # logging updates
         self.goals[0] = goal
 
         for t_ in range(env._max_episode_steps):
-            try:
-                if self.render:
-                    env.render()
-                    time.sleep(0.0001)
-                    
-                #   <================ low level policy ================>
-                # take primitive action
-                action = self.actor.select_action(state, goal)
+            if self.render:
+                env.render()
+                time.sleep(0.0001)
 
-                next_state, rew, done, _ = env.step(action)
+            #   <================ low level policy ================>
+            # take primitive action
+            action = self.actor.select_action(state, goal)
 
-                # this is for logging
-                self.reward += rew
-                self.timestep += 1
+            next_state, rew, done, _ = env.step(action)
 
-                # check if goal is achieved
-                goal_achieved = self.check_goal(next_state, goal, self.threshold)
+            # this is for logging
+            self.reward += rew
+            self.timestep += 1
 
-                self.replay_buffer.add((state, action, 0.0, next_state, goal, state, float(done)))
+            # check if goal is achieved
+            goal_achieved = self.check_goal(next_state, goal, self.threshold)
+            reward = 0.0 if goal_achieved else -1.0
+            # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
+            self.replay_buffer.store_experience(
+                new_episode,
+                state,
+                goal,
+                action,
+                next_state,
+                next_state,
+                reward,
+                float(done),
+            )
 
-                state = next_state
+            state = next_state
+            new_episode = False
 
-                if done or goal_achieved:
-                    break
-            except Exception as e:
-                print(f"exception error while run_UOF({e})")
+            if done or goal_achieved:
+                break
 
         return next_state, done
 

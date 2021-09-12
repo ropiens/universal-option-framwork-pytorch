@@ -14,7 +14,6 @@ def test():
 
     #################### Hyperparameters ####################
     env_name = "MountainCarContinuous-h-v1"  # "MountainCarContinuous-v0"
-    save_episode = 10  # keep saving every n episodes
     max_episodes = 5  # max num of training episodes
     random_seed = 0
     render = True
@@ -51,14 +50,8 @@ def test():
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
     threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
-    # UOF parameters:
-    H = 20  # time horizon to achieve subgoal
-    lamda = 0.3  # subgoal testing parameter
-
     # DDPG parameters:
     gamma = 0.95  # discount factor for future rewards
-    n_iter = 100  # update policy n_iter times in one DDPG update
-    batch_size = 100  # num of transitions sampled from replay buffer
     lr = 0.001
 
     # save trained models
@@ -74,8 +67,6 @@ def test():
 
     # creating UOF agent and setting parameters
     agent = UOF(
-        k_level,
-        H,
         state_dim,
         action_dim,
         render,
@@ -85,17 +76,7 @@ def test():
         state_bounds,
         state_offset,
         lr,
-    )
-
-    agent.set_parameters(
-        lamda,
         gamma,
-        action_clip_low,
-        action_clip_high,
-        state_clip_low,
-        state_clip_high,
-        exploration_action_noise,
-        exploration_state_noise,
     )
 
     # load agent
@@ -108,7 +89,7 @@ def test():
         agent.timestep = 0
 
         state = env.reset()
-        agent.run_UOF(env, k_level - 1, state, goal_state, True)
+        agent.run_UOF(env, state, goal_state)
 
         print("Episode: {}\t Reward: {}\t len: {}".format(i_episode, agent.reward, agent.timestep))
 

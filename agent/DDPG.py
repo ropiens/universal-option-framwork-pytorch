@@ -49,8 +49,8 @@ class DDPG:
         self.actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
 
-        self.critic = Critic(state_dim, action_dim).to(device)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr)
+        self.critic_1 = Critic(state_dim, action_dim).to(device)
+        self.critic_optimizer_1 = optim.Adam(self.critic_1.parameters(), lr=lr)
 
         self.mseLoss = torch.nn.MSELoss()
 
@@ -60,13 +60,22 @@ class DDPG:
         return self.actor(state, goal).detach().cpu().data.numpy().flatten()
 
     def update(self, buffer, n_iter, batch_size):
+        # modify experiences in hindsight
+        buffer.modify_experiences()
+        buffer.store_episode()
 
         for i in range(n_iter):
-            # modify experiences in hindsight 
-            buffer.modify()
-            
             # Sample a batch of transitions from replay buffer:
-            state, action, reward, next_state, goal, achived_goal, done = buffer.sample(batch_size)
+            batch = buffer.sample(batch_size)
+            state, action, reward, next_state, goal, achieved_goal, done = (
+                batch.state,
+                batch.action,
+                batch.reward,
+                batch.next_state,
+                batch.desired_goal,
+                batch.achieved_goal,
+                batch.done,
+            )
 
             # convert np arrays into tensors
             state = torch.FloatTensor(state).to(device)
@@ -74,24 +83,24 @@ class DDPG:
             reward = torch.FloatTensor(reward).reshape((batch_size, 1)).to(device)
             next_state = torch.FloatTensor(next_state).to(device)
             goal = torch.FloatTensor(goal).to(device)
-            achived_goal = torch.FloatTensor(achived_goal).reshape((batch_size, 1)).to(device)
+            achieved_goal = torch.FloatTensor(achieved_goal).to(device)
             done = torch.FloatTensor(done).reshape((batch_size, 1)).to(device)
 
             # select next action
             next_action = self.actor(next_state, goal).detach()
 
             # Compute target Q-value:
-            target_Q = self.critic(next_state, next_action, goal).detach()
+            target_Q = self.critic_1(next_state, next_action, goal).detach()
             target_Q = reward + ((1 - done) * self.gamma * target_Q)
 
             # Optimize Critic:
-            critic_loss = self.mseLoss(self.critic(state, action, goal), target_Q)
-            self.critic_optimizer.zero_grad()
+            critic_loss = self.mseLoss(self.critic_1(state, action, goal), target_Q)
+            self.critic_optimizer_1.zero_grad()
             critic_loss.backward()
-            self.critic_optimizer.step()
+            self.critic_optimizer_1.step()
 
             # Compute actor loss:
-            actor_loss = -self.critic(state, self.actor(state, goal), goal).mean()
+            actor_loss = -self.critic_1(state, self.actor(state, goal), goal).mean()
 
             # Optimize the actor
             self.actor_optimizer.zero_grad()
@@ -100,8 +109,8 @@ class DDPG:
 
     def save(self, directory, name):
         torch.save(self.actor.state_dict(), "%s/%s_actor.pth" % (directory, name))
-        torch.save(self.critic.state_dict(), "%s/%s_crtic.pth" % (directory, name))
+        torch.save(self.critic_1.state_dict(), "%s/%s_crtic_1.pth" % (directory, name))
 
     def load(self, directory, name):
         self.actor.load_state_dict(torch.load("%s/%s_actor.pth" % (directory, name), map_location="cpu"))
-        self.critic.load_state_dict(torch.load("%s/%s_crtic.pth" % (directory, name), map_location="cpu"))
+        self.critic_1.load_state_dict(torch.load("%s/%s_crtic_1.pth" % (directory, name), map_location="cpu"))
