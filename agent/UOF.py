@@ -56,13 +56,13 @@ class UOF:
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
-        optor_mem_capacity = 100000
+        optor_mem_capacity = int(1e5)
         self.optor = DIOL(state_dim, option_dim, lr, gamma)
         self.optor_replay_buffer = HighLevelHindsightReplayBuffer(optor_mem_capacity, OPT_Tr)
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
-        actor_mem_capacity = 100000
+        actor_mem_capacity = int(1e5)
         self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
         self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
 
@@ -85,48 +85,46 @@ class UOF:
 
     def run_UOF(self, env, state, goal):
         next_state = None
-        done = None
-        goal_achieved = False
+        done = False
         new_episode = True
-
         # logging updates
         self.goals[0] = goal
 
-        for t_ in range(env._max_episode_steps):
-            if self.render:
-                env.render()
-                time.sleep(0.0001)
+        while not done:
+            goal_achieved = False
+            new_option = True
+            option = self.optor.select_option(state, goal)
+            while (not done) and (not goal_achieved):
+                if self.render:
+                    env.render()
 
-            #   <================ low level policy ================>
-            # take primitive action
-            action = self.actor.select_action(state, goal)
+                #   <================ low level policy ================>
+                # take primitive action
+                action = self.actor.select_action(state, goal, final_goal_ind)
 
-            next_state, rew, done, _ = env.step(action)
+                next_state, rew, done, _ = env.step(action)
 
-            # this is for logging
-            self.reward += rew
-            self.timestep += 1
+                # this is for logging
+                self.reward += rew
+                self.timestep += 1
 
-            # check if goal is achieved
-            goal_achieved = self.check_goal(next_state, goal, self.threshold)
-            reward = 0.0 if goal_achieved else -1.0
-            # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
-            self.actor_replay_buffer.store_experience(
-                new_episode,
-                state,
-                goal,
-                action,
-                next_state,
-                next_state,
-                reward,
-                float(done),
-            )
+                # check if goal is achieved
+                goal_achieved = self.check_goal(next_state, goal, self.threshold)
+                reward = 0.0 if goal_achieved else -1.0
+                # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
+                self.actor_replay_buffer.store_experience(
+                    new_episode,
+                    state,
+                    goal,
+                    action,
+                    next_state,
+                    next_state,
+                    reward,
+                    float(done),
+                )
 
-            state = next_state
-            new_episode = False
-
-            if done or goal_achieved:
-                break
+                state = next_state
+                new_episode = False
 
         return next_state, done
 

@@ -60,9 +60,15 @@ class DDPG:
         return self.actor(state, goal).detach().cpu().data.numpy().flatten()
 
     def update(self, buffer, n_iter, batch_size):
+        if len(buffer.episodes) == 0:
+            return
+
         # modify experiences in hindsight
         buffer.modify_experiences()
         buffer.store_episode()
+
+        if len(buffer) < batch_size:
+            return
 
         for i in range(n_iter):
             # Sample a batch of transitions from replay buffer:
