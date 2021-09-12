@@ -3,9 +3,10 @@ import torch
 import time
 from collections import namedtuple
 
-from utils import LowLevelHindsightReplayBuffer
+from .utils import LowLevelHindsightReplayBuffer
 
 from .DDPG import DDPG
+from .DIOL import DIOL
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -54,7 +55,7 @@ class UOF:
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
-        # self.optor
+        self.optor = DIOL(state_dim, option_dim, lr, gamma)
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
