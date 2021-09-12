@@ -16,7 +16,7 @@ def train():
     save_episode = 10  # keep saving every n episodes
     max_episodes = 1000  # max num of training episodes
     random_seed = 0
-    render = True
+    render = False
 
     env = gym.make(env_name)
     state_dim = env.observation_space.shape[0]
@@ -48,14 +48,7 @@ def train():
     exploration_state_noise = np.array([0.02, 0.01])
 
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
-    threshold = np.array(
-        [0.01, 0.02]
-    )  # threshold value to check if goal state is achieved
-
-    # UOF parameters:
-    k_level = 1  # num of levels in hierarchy
-    H = 20  # time horizon to achieve subgoal
-    lamda = 0.3  # subgoal testing parameter
+    threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
     # DDPG parameters:
     gamma = 0.95  # discount factor for future rewards
@@ -64,7 +57,7 @@ def train():
     lr = 0.001
 
     # save trained models
-    directory = "{}/preTrained/{}/{}level/".format(os.getcwd(), env_name, k_level)
+    directory = "{}/preTrained/{}/".format(os.getcwd(), env_name)
     filename = "UOF_{}".format(env_name)
     #########################################################
 
@@ -76,7 +69,6 @@ def train():
 
     # creating UOF agent and setting parameters
     agent = UOF(
-        H,
         state_dim,
         action_dim,
         render,
@@ -86,17 +78,7 @@ def train():
         state_bounds,
         state_offset,
         lr,
-    )
-
-    agent.set_parameters(
-        lamda,
         gamma,
-        action_clip_low,
-        action_clip_high,
-        state_clip_low,
-        state_clip_high,
-        exploration_action_noise,
-        exploration_state_noise,
     )
 
     # logging file:
@@ -109,7 +91,7 @@ def train():
 
         state = env.reset()
         # collecting experience in environment
-        last_state, done = agent.run_UOF(env, state, goal_state, False)
+        last_state, done = agent.run_UOF(env, state, goal_state)
 
         if agent.check_goal(last_state, goal_state, threshold):
             print("################ Solved! ################ ")

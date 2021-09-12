@@ -1,17 +1,45 @@
 import numpy as np
 import torch
+import time
+from collections import namedtuple
 
-from utils import ReplayBuffer
+from utils import LowLevelHindsightReplayBuffer
 
 from .DDPG import DDPG
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+OPT_Tr = namedtuple(
+    "transition",
+    (
+        "state",
+        "desired_goal",
+        "option",
+        "next_state",
+        "achieved_goal",
+        "option_done",
+        "reward",
+        "done",
+    ),
+)
+ACT_Tr = namedtuple(
+    "transition",
+    (
+        "state",
+        "desired_goal",
+        "action",
+        "next_state",
+        "achieved_goal",
+        "reward",
+        "done",
+    ),
+)
+
+
 class UOF:
     def __init__(
         self,
-        H,
         state_dim,
         action_dim,
         render,
@@ -21,14 +49,20 @@ class UOF:
         state_bounds,
         state_offset,
         lr,
+        gamma,
     ):
 
-        # adding lowest level
-        self.UOF = [DDPG(state_dim, action_dim, action_bounds, action_offset, lr, H)]
-        self.replay_buffer = [ReplayBuffer()]
+        """Inter-Option/High-Level policies - DIOL"""
+        # opt, optor refer to high-level policy
+        # self.optor
+
+        """Intra-Option/Low-Level policies - DDPG + HER"""
+        # act, actor refer to low-level policy
+        actor_mem_capacity = 100000
+        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
+        self.replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
 
         # set some parameters
-        self.H = H
         self.action_dim = action_dim
         self.state_dim = state_dim
         self.threshold = threshold
@@ -39,119 +73,64 @@ class UOF:
         self.reward = 0
         self.timestep = 0
 
-    def set_parameters(
-        self,
-        lamda,
-        gamma,
-        action_clip_low,
-        action_clip_high,
-        state_clip_low,
-        state_clip_high,
-        exploration_action_noise,
-        exploration_state_noise,
-    ):
-
-        self.lamda = lamda
-        self.gamma = gamma
-        self.action_clip_low = action_clip_low
-        self.action_clip_high = action_clip_high
-        self.state_clip_low = state_clip_low
-        self.state_clip_high = state_clip_high
-        self.exploration_action_noise = exploration_action_noise
-        self.exploration_state_noise = exploration_state_noise
-
     def check_goal(self, state, goal, threshold):
         for i in range(self.state_dim):
             if abs(state[i] - goal[i]) > threshold[i]:
                 return False
         return True
 
-    def run_UOF(self, env, state, goal, is_subgoal_test):
+    def run_UOF(self, env, state, goal):
         next_state = None
         done = None
-        goal_transitions = []
+        goal_achieved = False
+        new_episode = True
 
         # logging updates
         self.goals[0] = goal
 
-        # H attempts
-        for _ in range(self.H):
-            # if this is a subgoal test, then next/lower level goal has to be a subgoal test
-            is_next_subgoal_test = is_subgoal_test
-
-            action = self.UOF[0].select_action(state, goal)
-
-            #   <================ low level policy ================>
-            # add noise or take random action if not subgoal testing
-            if not is_subgoal_test:
-                if np.random.random_sample() > 0.2:
-                    action = action + np.random.normal(
-                        0, self.exploration_action_noise
-                    )
-                    action = action.clip(
-                        self.action_clip_low, self.action_clip_high
-                    )
-                else:
-                    action = np.random.uniform(
-                        self.action_clip_low, self.action_clip_high
-                    )
-
-            # take primitive action
-            next_state, rew, done, _ = env.step(action)
-
+        for t_ in range(env._max_episode_steps):
             if self.render:
                 env.render()
+                time.sleep(0.0001)
 
-                for _ in range(1000000):
-                    continue
+            #   <================ low level policy ================>
+            # take primitive action
+            action = self.actor.select_action(state, goal)
+
+            next_state, rew, done, _ = env.step(action)
 
             # this is for logging
             self.reward += rew
             self.timestep += 1
 
-            #   <================ finish one step/transition ================>
-
             # check if goal is achieved
             goal_achieved = self.check_goal(next_state, goal, self.threshold)
-
-            # hindsight action transition
-            if goal_achieved:
-                self.replay_buffer[0].add(
-                    (state, action, 0.0, next_state, goal, 0.0, float(done))
-                )
-            else:
-                self.replay_buffer[0].add(
-                    (state, action, -1.0, next_state, goal, self.gamma, float(done))
-                )
-
-            # copy for goal transition
-            goal_transitions.append(
-                [state, action, -1.0, next_state, None, self.gamma, float(done)]
+            reward = 0.0 if goal_achieved else -1.0
+            # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
+            self.replay_buffer.store_experience(
+                new_episode,
+                state,
+                goal,
+                action,
+                next_state,
+                next_state,
+                reward,
+                float(done),
             )
 
             state = next_state
+            new_episode = False
 
             if done or goal_achieved:
                 break
 
-        #   <================ finish H attempts ================>
-
-        # hindsight goal transition
-        # last transition reward and discount is 0
-        goal_transitions[-1][2] = 0.0
-        goal_transitions[-1][5] = 0.0
-        for transition in goal_transitions:
-            # last state is goal for all transitions
-            transition[4] = next_state
-            self.replay_buffer[0].add(tuple(transition))
-
         return next_state, done
 
     def update(self, n_iter, batch_size):
-        self.UOF[0].update(self.replay_buffer[0], n_iter, batch_size)
+        self.actor.update(self.replay_buffer, n_iter, batch_size)
 
     def save(self, directory, name):
-        self.UOF[0].save(directory, name + "_level_{}".format(0))
+        self.actor.save(directory, name + "_level_{}".format(0))
 
     def load(self, directory, name):
-        self.UOF[0].load(directory, name + "_level_{}".format(0))
+        self.actor.load(directory, name + "_level_{}".format(0))
