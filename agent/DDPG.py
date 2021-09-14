@@ -52,6 +52,9 @@ class DDPG:
         self.critic_1 = Critic(state_dim, action_dim).to(device)
         self.critic_optimizer_1 = optim.Adam(self.critic_1.parameters(), lr=lr)
 
+        self.critic_2 = Critic(state_dim, action_dim).to(device)
+        self.critic_optimizer_2 = optim.Adam(self.critic_2.parameters(), lr=lr)
+
         self.mseLoss = torch.nn.MSELoss()
 
     def select_action(self, state, goal):

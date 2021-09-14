@@ -83,50 +83,61 @@ class UOF:
                 return False
         return True
 
+    def set_subgoal(self, option_ind=0):
+        goals = np.array([[0.48, 0.04], [0.48, 0.04], [0.48, 0.04], [0.48, 0.04]])
+        return goals[0]
+
     def run_UOF(self, env, state, goal):
         next_state = None
-        done = False
+        time_done = False
         new_episode = True
         # logging updates
         self.goals[0] = goal
 
-        while not done:
-            goal_achieved = False
+        while not time_done:
+            subgoal_done = False
             new_option = True
+
+            # get subgoal from optor
             option = self.optor.select_option(state, goal)
-            while (not done) and (not goal_achieved):
+            subgoal = self.set_subgoal(option)
+            while (not time_done) and (not subgoal_done):
                 if self.render:
                     env.render()
 
-                #   <================ low level policy ================>
-                # take primitive action
-                action = self.actor.select_action(state, goal, final_goal_ind)
-
-                next_state, rew, done, _ = env.step(action)
+                # take action from actor
+                action = self.actor.select_action(state, subgoal)
+                next_state, act_reward, time_done, _ = env.step(action)
 
                 # this is for logging
-                self.reward += rew
+                self.reward += act_reward
                 self.timestep += 1
 
                 # check if goal is achieved
-                goal_achieved = self.check_goal(next_state, goal, self.threshold)
-                reward = 0.0 if goal_achieved else -1.0
-                # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
+                subgoal_done = self.check_goal(next_state, subgoal, self.threshold)
+                opt_reward = 0.0 if subgoal_done else -1.0
+
+                # store experiences
                 self.actor_replay_buffer.store_experience(
+                    new_option, state, subgoal, action, next_state, next_state, act_reward, 1 - int(subgoal_done)
+                )
+                self.optor_replay_buffer.store_experience(
                     new_episode,
                     state,
                     goal,
-                    action,
+                    option,
                     next_state,
                     next_state,
-                    reward,
-                    float(done),
+                    1 - int(subgoal_done),
+                    opt_reward,
+                    1 - int(time_done),
                 )
 
                 state = next_state
                 new_episode = False
+                new_option = False
 
-        return next_state, done
+        return next_state, time_done
 
     def update(self, n_iter, batch_size):
         self.actor.update(self.actor_replay_buffer, n_iter, batch_size)

@@ -39,11 +39,22 @@ class DIOL:
 
         self.mseLoss = torch.nn.MSELoss()
 
-    def select_option(self, state, high_level_goal, desired_goal_id, ep=0):
+    def select_option(self, state, high_level_goal, ep=0):
         pass
 
-    def update(self, buffer):
-        pass
+    def update(self, buffer, n_iter, batch_size):
+        if len(buffer.episodes) == 0:
+            return
+
+        # modify experiences in hindsight
+        buffer.modify_experiences()
+        buffer.store_episode()
+
+        if len(buffer) < batch_size:
+            return
+
+        for i in range(n_iter):
+            batch = buffer.sample(batch_size)
 
     def save(self, directory, name):
         torch.save(self.actor.state_dict(), "%s/%s_optor_1.pth" % (directory, name))
