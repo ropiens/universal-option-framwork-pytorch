@@ -83,9 +83,9 @@ class UOF:
                 return False
         return True
 
-    def set_subgoal(self, option_ind=0):
-        goals = np.array([[0.48, 0.04], [0.48, 0.04], [0.48, 0.04], [0.48, 0.04]])
-        return goals[0]
+    def set_subgoal(self, option_ind):
+        goals = np.array([[0.15, 0.04], [0.00, 0.04], [-0.68, 0.04], [-1.1, 0.04]])
+        return goals[option_ind]
 
     def run_UOF(self, env, state, goal):
         next_state = None
@@ -103,7 +103,7 @@ class UOF:
             subgoal = self.set_subgoal(option)
             while (not time_done) and (not subgoal_done):
                 if self.render:
-                    env.render()
+                    env.unwrapped.render_goal(goal, subgoal)
 
                 # take action from actor
                 action = self.actor.select_action(state, subgoal)

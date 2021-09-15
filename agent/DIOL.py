@@ -40,7 +40,7 @@ class DIOL:
         self.mseLoss = torch.nn.MSELoss()
 
     def select_option(self, state, high_level_goal, ep=0):
-        pass
+        return 0
 
     def update(self, buffer, n_iter, batch_size):
         if len(buffer.episodes) == 0:
@@ -54,7 +54,30 @@ class DIOL:
             return
 
         for i in range(n_iter):
+            # Sample a batch of transitions from replay buffer:
             batch = buffer.sample(batch_size)
+            state, option, reward, next_state, goal, achieved_goal, option_done, done = (
+                batch.state,
+                batch.option,
+                batch.reward,
+                batch.next_state,
+                batch.desired_goal,
+                batch.achieved_goal,
+                batch.option_done,
+                batch.done,
+            )
+
+            # convert np arrays into tensors
+            state = torch.FloatTensor(state).to(device)
+            option = torch.FloatTensor(option).to(device)
+            reward = torch.FloatTensor(reward).reshape((batch_size, 1)).to(device)
+            next_state = torch.FloatTensor(next_state).to(device)
+            goal = torch.FloatTensor(goal).to(device)
+            achieved_goal = torch.FloatTensor(achieved_goal).to(device)
+            option_done = torch.FloatTensor(option_done).reshape((batch_size, 1)).to(device)
+            done = torch.FloatTensor(done).reshape((batch_size, 1)).to(device)
+
+            
 
     def save(self, directory, name):
         torch.save(self.actor.state_dict(), "%s/%s_optor_1.pth" % (directory, name))
