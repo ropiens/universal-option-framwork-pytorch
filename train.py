@@ -51,8 +51,9 @@ def train():
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
     threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
-    # DDPG parameters:
+    # DDPG & DIOL parameters:
     gamma = 0.95  # discount factor for future rewards
+    tau = 0.1  # target soft update rate
     n_iter = 100  # update policy n_iter times in one DDPG update
     batch_size = 100  # num of transitions sampled from replay buffer
     lr = 0.001
@@ -81,6 +82,7 @@ def train():
         state_offset,
         lr,
         gamma,
+        tau,
     )
 
     # logging file:

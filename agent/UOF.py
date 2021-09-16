@@ -52,12 +52,13 @@ class UOF:
         state_offset,
         lr,
         gamma,
+        tau,
     ):
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
         optor_mem_capacity = int(1e5)
-        self.optor = DIOL(state_dim, option_dim, lr, gamma)
+        self.optor = DIOL(state_dim, option_dim, lr, gamma, tau)
         self.optor_replay_buffer = HighLevelHindsightReplayBuffer(optor_mem_capacity, OPT_Tr)
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
