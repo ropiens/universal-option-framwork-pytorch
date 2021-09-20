@@ -11,7 +11,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Mlp(nn.Module):
     def __init__(self, state_dim, option_dim, fc1_size=64, fc2_size=64, init_w=3e-3):
         super(Mlp, self).__init__()
-        self.input_dim = state_dim + state_dim  # state + option + goal
+        self.input_dim = state_dim + state_dim  # state + goal
         self.output_dim = option_dim
         self.fc1 = nn.Linear(self.input_dim, fc1_size)
         self.fc2 = nn.Linear(fc1_size, fc2_size)
@@ -56,12 +56,17 @@ class DIOL:
             target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
     def select_option(self, state, high_level_goal, ep=0):
+
+        state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+        high_level_goal = torch.FloatTensor(high_level_goal.reshape(1, -1)).to(device)
+        
         option_values = self.target_optor(state, high_level_goal)
 
-        if np.random.uniform(0, 1) < self.optor_exploration(ep):
-            option = np.random.randint(0, self.option_num - 1)
-        else:
-            option = torch.argmax(option_values).item()
+        """TO DO: add DecayGreddy Exploration module"""
+        # if np.random.uniform(0, 1) < self.optor_exploration(ep):
+        #     option = np.random.randint(0, self.option_num - 1)
+        # else:
+        option = torch.argmax(option_values).item()
         return option
 
     def update(self, buffer, n_iter, batch_size):
@@ -99,12 +104,18 @@ class DIOL:
             option_done = torch.FloatTensor(option_done).reshape((batch_size, 1)).to(device)
             done = torch.FloatTensor(done).reshape((batch_size, 1)).to(device)
 
-            self.target_optor(state, goal)
+            # calculate "option value upon arrival"
+            unchanged_next_option_values = self.target_optor(state, goal).gather(1, option)
+            maximal_next_option_values = self.target_optor(state, goal).max(1)[0].view(batch_size, 1)
+            next_option_values = option_done * unchanged_next_option_values + (1 - option_done) * maximal_next_option_values
+
+            
+
 
     def save(self, directory, name):
-        torch.save(self.actor.state_dict(), "%s/%s_optor_1.pth" % (directory, name))
-        torch.save(self.critic_1.state_dict(), "%s/%s_optor_2.pth" % (directory, name))
+        torch.save(self.target_optor.state_dict(), "%s/%s_optor.pth" % (directory, name))
+        # torch.save(self.optor_2.state_dict(), "%s/%s_optor_2.pth" % (directory, name))
 
     def load(self, directory, name):
-        self.optor_1.load_state_dict(torch.load("%s/%s_optor_1.pth" % (directory, name), map_location="cpu"))
-        self.optor_2.load_state_dict(torch.load("%s/%s_optor_2.pth" % (directory, name), map_location="cpu"))
+        self.target_optor.load_state_dict(torch.load("%s/%s_optor.pth" % (directory, name), map_location="cpu"))
+        # self.optor_2.load_state_dict(torch.load("%s/%s_optor_2.pth" % (directory, name), map_location="cpu"))

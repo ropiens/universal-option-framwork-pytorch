@@ -142,9 +142,12 @@ class UOF:
 
     def update(self, n_iter, batch_size):
         self.actor.update(self.actor_replay_buffer, n_iter, batch_size)
+        self.optor.update(self.optor_replay_buffer, n_iter, batch_size)
 
     def save(self, directory, name):
         self.actor.save(directory, name + "_level_{}".format(0))
+        self.optor.save(directory, name + "_level_{}".format(0))
 
     def load(self, directory, name):
         self.actor.load(directory, name + "_level_{}".format(0))
+        self.optor.save(directory, name + "_level_{}".format(0))
