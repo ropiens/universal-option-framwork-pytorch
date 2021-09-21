@@ -47,10 +47,18 @@ class DDPG:
         self.gamma = gamma
 
         self.actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
+        self.target_actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
 
         self.critic_1 = Critic(state_dim, action_dim).to(device)
+        self.target_critic_1 = Critic(state_dim, action_dim).to(device)
         self.critic_optimizer_1 = optim.Adam(self.critic_1.parameters(), lr=lr)
+
+        # self.critic_2 = Critic(state_dim, action_dim).to(device)
+        # self.target_critic_2 = Critic(state_dim, action_dim).to(device)
+        # self.critic_optimizer_2 = optim.Adam(self.critic_2.parameters(), lr=lr)
+
+        # self.soft_update(tau=1.0)
 
         self.mseLoss = torch.nn.MSELoss()
 
@@ -59,10 +67,29 @@ class DDPG:
         goal = torch.FloatTensor(goal.reshape(1, -1)).to(device)
         return self.actor(state, goal).detach().cpu().data.numpy().flatten()
 
+    def soft_update(self, tau):
+        if tau is None:
+            tau = self.tau
+
+        for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
+            target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+
+        for target_param, param in zip(self.target_critic_1.parameters(), self.critic_1.parameters()):
+            target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+
+        # for target_param, param in zip(self.target_critic_2.parameters(), self.critic_2.parameters()):
+        #     target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+
     def update(self, buffer, n_iter, batch_size):
+        if len(buffer.episodes) == 0:
+            return
+
         # modify experiences in hindsight
         buffer.modify_experiences()
         buffer.store_episode()
+
+        if len(buffer) < batch_size:
+            return
 
         for i in range(n_iter):
             # Sample a batch of transitions from replay buffer:
@@ -110,7 +137,9 @@ class DDPG:
     def save(self, directory, name):
         torch.save(self.actor.state_dict(), "%s/%s_actor.pth" % (directory, name))
         torch.save(self.critic_1.state_dict(), "%s/%s_crtic_1.pth" % (directory, name))
+        # torch.save(self.critic_2.state_dict(), "%s/%s_crtic_1.pth" % (directory, name))
 
     def load(self, directory, name):
         self.actor.load_state_dict(torch.load("%s/%s_actor.pth" % (directory, name), map_location="cpu"))
         self.critic_1.load_state_dict(torch.load("%s/%s_crtic_1.pth" % (directory, name), map_location="cpu"))
+        # self.critic_2.load_state_dict(torch.load("%s/%s_crtic_1.pth" % (directory, name), map_location="cpu"))

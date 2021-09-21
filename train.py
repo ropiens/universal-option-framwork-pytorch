@@ -16,10 +16,11 @@ def train():
     save_episode = 10  # keep saving every n episodes
     max_episodes = 1000  # max num of training episodes
     random_seed = 0
-    render = False
+    render = True
 
     env = gym.make(env_name)
     state_dim = env.observation_space.shape[0]
+    option_dim = 6
     action_dim = env.action_space.shape[0]
 
     """
@@ -50,8 +51,9 @@ def train():
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
     threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
 
-    # DDPG parameters:
+    # DDPG & DIOL parameters:
     gamma = 0.95  # discount factor for future rewards
+    tau = 0.1  # target soft update rate
     n_iter = 100  # update policy n_iter times in one DDPG update
     batch_size = 100  # num of transitions sampled from replay buffer
     lr = 0.001
@@ -70,6 +72,7 @@ def train():
     # creating UOF agent and setting parameters
     agent = UOF(
         state_dim,
+        option_dim,
         action_dim,
         render,
         threshold,
@@ -79,6 +82,7 @@ def train():
         state_offset,
         lr,
         gamma,
+        tau,
     )
 
     # logging file:
@@ -91,7 +95,7 @@ def train():
 
         state = env.reset()
         # collecting experience in environment
-        last_state, done = agent.run_UOF(env, state, goal_state)
+        last_state, done = agent.run_UOF(env, state, goal_state, option_dim)
 
         if agent.check_goal(last_state, goal_state, threshold):
             print("################ Solved! ################ ")

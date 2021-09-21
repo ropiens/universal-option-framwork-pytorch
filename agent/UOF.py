@@ -3,9 +3,16 @@ import torch
 import time
 from collections import namedtuple
 
-from utils import LowLevelHindsightReplayBuffer
+from .utils import (
+    AutoAdjustingConstantChance,
+    ConstantChance,
+    LowLevelHindsightReplayBuffer,
+    HighLevelHindsightReplayBuffer,
+    ExpDecayGreedy,
+)
 
 from .DDPG import DDPG
+from .DIOL import DIOL
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -41,6 +48,7 @@ class UOF:
     def __init__(
         self,
         state_dim,
+        option_dim,
         action_dim,
         render,
         threshold,
@@ -50,17 +58,26 @@ class UOF:
         state_offset,
         lr,
         gamma,
+        tau,
     ):
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
-        # self.optor
+        optor_mem_capacity = int(1e5)
+        self.optor = DIOL(state_dim, option_dim, lr, gamma, tau)
+        self.optor_replay_buffer = HighLevelHindsightReplayBuffer(optor_mem_capacity, OPT_Tr)
+        self.optor.optor_exploration = ExpDecayGreedy(start=1.0, end=0.02, decay=30000)
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
-        actor_mem_capacity = 100000
+        actor_mem_capacity = int(1e5)
         self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
-        self.replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
+        self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
+        """To Do: add AAES Exploration"""
+        # if not self.aaes_exploration:
+        #     self.actor_exploration = ConstantChance()
+        # else:
+        #     self.actor_exploration = AutoAdjustingConstantChance()
 
         # set some parameters
         self.action_dim = action_dim
@@ -79,58 +96,71 @@ class UOF:
                 return False
         return True
 
-    def run_UOF(self, env, state, goal):
-        next_state = None
-        done = None
-        goal_achieved = False
-        new_episode = True
+    def set_subgoal(self, option_ind, option_num):
+        subgoals = np.linspace(-1.1, 0.5, option_num)
+        return np.array([subgoals[option_ind], 0.04])
 
+    def run_UOF(self, env, state, goal, option_num=5):
+        next_state = None
+        time_done = False
+        new_episode = True
         # logging updates
         self.goals[0] = goal
 
-        for t_ in range(env._max_episode_steps):
-            if self.render:
-                env.render()
-                time.sleep(0.0001)
+        while not time_done:
+            subgoal_done = False
+            new_option = True
 
-            #   <================ low level policy ================>
-            # take primitive action
-            action = self.actor.select_action(state, goal)
+            # get subgoal from optor
+            option = self.optor.select_option(state, goal)
+            subgoal = self.set_subgoal(option, option_num)
+            print(subgoal)
+            while (not time_done) and (not subgoal_done):
+                if self.render:
+                    env.unwrapped.render_goal(goal, subgoal)
 
-            next_state, rew, done, _ = env.step(action)
+                # take action from actor
+                action = self.actor.select_action(state, subgoal)
+                next_state, act_reward, time_done, _ = env.step(action)
 
-            # this is for logging
-            self.reward += rew
-            self.timestep += 1
+                # this is for logging
+                self.reward += act_reward
+                self.timestep += 1
 
-            # check if goal is achieved
-            goal_achieved = self.check_goal(next_state, goal, self.threshold)
-            reward = 0.0 if goal_achieved else -1.0
-            # ('state', 'desired_goal', 'action', 'next_state', 'achieved_goal', 'reward', 'done')
-            self.replay_buffer.store_experience(
-                new_episode,
-                state,
-                goal,
-                action,
-                next_state,
-                next_state,
-                reward,
-                float(done),
-            )
+                # check if goal is achieved
+                subgoal_done = self.check_goal(next_state, subgoal, self.threshold)
+                opt_reward = 0.0 if subgoal_done else -1.0
 
-            state = next_state
-            new_episode = False
+                # store experiences
+                self.actor_replay_buffer.store_experience(
+                    new_option, state, subgoal, action, next_state, next_state, act_reward, 1 - int(subgoal_done)
+                )
+                self.optor_replay_buffer.store_experience(
+                    new_episode,
+                    state,
+                    goal,
+                    option,
+                    next_state,
+                    next_state,
+                    1 - int(subgoal_done),
+                    opt_reward,
+                    1 - int(time_done),
+                )
 
-            if done or goal_achieved:
-                break
+                state = next_state
+                new_episode = False
+                new_option = False
 
-        return next_state, done
+        return next_state, time_done
 
     def update(self, n_iter, batch_size):
-        self.actor.update(self.replay_buffer, n_iter, batch_size)
+        self.actor.update(self.actor_replay_buffer, n_iter, batch_size)
+        self.optor.update(self.optor_replay_buffer, n_iter, batch_size)
 
     def save(self, directory, name):
         self.actor.save(directory, name + "_level_{}".format(0))
+        self.optor.save(directory, name + "_level_{}".format(0))
 
     def load(self, directory, name):
         self.actor.load(directory, name + "_level_{}".format(0))
+        self.optor.save(directory, name + "_level_{}".format(0))
