@@ -59,6 +59,7 @@ class UOF:
         lr,
         gamma,
         tau,
+        use_aaes=True,
     ):
 
         """Inter-Option/High-Level policies - DIOL"""
@@ -74,16 +75,18 @@ class UOF:
         self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
         self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
         """To Do: add AAES Exploration"""
-        # if not self.aaes_exploration:
-        #     self.actor_exploration = ConstantChance()
-        # else:
-        #     self.actor_exploration = AutoAdjustingConstantChance()
+        if not use_aaes:
+            self.actor.actor_exploration = ConstantChance(chance=0.2)
+        else:
+            self.actor.actor_exploration = AutoAdjustingConstantChance(goal_num=option_dim, chance=0.2, tau=0.5)
 
         # set some parameters
         self.action_dim = action_dim
         self.state_dim = state_dim
         self.threshold = threshold
         self.render = render
+
+        self.traning_ep_count = 0
 
         # logging parameters
         self.goals = [None]
@@ -112,7 +115,7 @@ class UOF:
             new_option = True
 
             # get subgoal from optor
-            option = self.optor.select_option(state, goal)
+            option = self.optor.select_option(state, goal, ep=self.traning_ep_count)
             subgoal = self.set_subgoal(option, option_num)
             print(subgoal)
             while (not time_done) and (not subgoal_done):

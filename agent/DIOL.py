@@ -61,7 +61,6 @@ class DIOL:
 
         option_values = self.target_optor(state, high_level_goal)
 
-        """TO DO: add DecayGreddy Exploration module"""
         if np.random.uniform(0, 1) < self.optor_exploration(ep):
             option = np.random.randint(0, self.option_num - 1)
         else:
