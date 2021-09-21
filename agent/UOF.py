@@ -3,7 +3,13 @@ import torch
 import time
 from collections import namedtuple
 
-from .utils import LowLevelHindsightReplayBuffer, HighLevelHindsightReplayBuffer
+from .utils import (
+    AutoAdjustingConstantChance,
+    ConstantChance,
+    LowLevelHindsightReplayBuffer,
+    HighLevelHindsightReplayBuffer,
+    ExpDecayGreedy,
+)
 
 from .DDPG import DDPG
 from .DIOL import DIOL
@@ -60,12 +66,18 @@ class UOF:
         optor_mem_capacity = int(1e5)
         self.optor = DIOL(state_dim, option_dim, lr, gamma, tau)
         self.optor_replay_buffer = HighLevelHindsightReplayBuffer(optor_mem_capacity, OPT_Tr)
+        self.optor.optor_exploration = ExpDecayGreedy(start=1.0, end=0.02, decay=30000)
 
         """Intra-Option/Low-Level policies - DDPG + HER"""
         # act, actor refer to low-level policy
         actor_mem_capacity = int(1e5)
         self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
         self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
+        """To Do: add AAES Exploration"""
+        # if not self.aaes_exploration:
+        #     self.actor_exploration = ConstantChance()
+        # else:
+        #     self.actor_exploration = AutoAdjustingConstantChance()
 
         # set some parameters
         self.action_dim = action_dim
@@ -84,11 +96,11 @@ class UOF:
                 return False
         return True
 
-    def set_subgoal(self, option_ind):
-        goals = np.array([[0.15, 0.04], [0.00, 0.04], [-0.68, 0.04], [-1.1, 0.04]])
-        return goals[option_ind]
+    def set_subgoal(self, option_ind, option_num):
+        subgoals = np.linspace(-1.1, 0.5, option_num)
+        return np.array([subgoals[option_ind], 0.04])
 
-    def run_UOF(self, env, state, goal):
+    def run_UOF(self, env, state, goal, option_num=5):
         next_state = None
         time_done = False
         new_episode = True
@@ -101,7 +113,8 @@ class UOF:
 
             # get subgoal from optor
             option = self.optor.select_option(state, goal)
-            subgoal = self.set_subgoal(option)
+            subgoal = self.set_subgoal(option, option_num)
+            print(subgoal)
             while (not time_done) and (not subgoal_done):
                 if self.render:
                     env.unwrapped.render_goal(goal, subgoal)

@@ -59,7 +59,7 @@ class DDPG:
         # self.critic_optimizer_2 = optim.Adam(self.critic_2.parameters(), lr=lr)
 
         # self.soft_update(tau=1.0)
-        
+
         self.mseLoss = torch.nn.MSELoss()
 
     def select_action(self, state, goal):

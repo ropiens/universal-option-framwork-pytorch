@@ -20,7 +20,7 @@ def train():
 
     env = gym.make(env_name)
     state_dim = env.observation_space.shape[0]
-    option_dim = 3
+    option_dim = 6
     action_dim = env.action_space.shape[0]
 
     """
@@ -95,7 +95,7 @@ def train():
 
         state = env.reset()
         # collecting experience in environment
-        last_state, done = agent.run_UOF(env, state, goal_state)
+        last_state, done = agent.run_UOF(env, state, goal_state, option_dim)
 
         if agent.check_goal(last_state, goal_state, threshold):
             print("################ Solved! ################ ")

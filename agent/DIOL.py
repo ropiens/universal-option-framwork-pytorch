@@ -32,18 +32,17 @@ class DIOL:
 
         self.gamma = gamma
         self.tau = tau
+        self.option_num = option_dim
 
         self.optor = Mlp(state_dim, option_dim).to(device)
         self.target_optor = Mlp(state_dim, option_dim).to(device)
-        self.optor_optimizer_1 = optim.Adam(self.optor.parameters(), lr=lr)
+        self.optor_optimizer = optim.Adam(self.optor.parameters(), lr=lr)
 
         self.optor_2 = Mlp(state_dim, option_dim).to(device)
         self.target_optor_2 = Mlp(state_dim, option_dim).to(device)
         self.optor_optimizer_2 = optim.Adam(self.optor_2.parameters(), lr=lr)
 
         self.soft_update(tau=1.0)
-
-        self.mseLoss = torch.nn.MSELoss()
 
     def soft_update(self, tau=None):
         if tau is None:
@@ -59,14 +58,14 @@ class DIOL:
 
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         high_level_goal = torch.FloatTensor(high_level_goal.reshape(1, -1)).to(device)
-        
+
         option_values = self.target_optor(state, high_level_goal)
 
         """TO DO: add DecayGreddy Exploration module"""
-        # if np.random.uniform(0, 1) < self.optor_exploration(ep):
-        #     option = np.random.randint(0, self.option_num - 1)
-        # else:
-        option = torch.argmax(option_values).item()
+        if np.random.uniform(0, 1) < self.optor_exploration(ep):
+            option = np.random.randint(0, self.option_num - 1)
+        else:
+            option = torch.argmax(option_values).item()
         return option
 
     def update(self, buffer, n_iter, batch_size):
@@ -96,7 +95,7 @@ class DIOL:
 
             # convert np arrays into tensors
             state = torch.FloatTensor(state).to(device)
-            option = torch.LongTensor(option).to(device)
+            option = torch.LongTensor(option).unsqueeze(1).to(device)
             reward = torch.FloatTensor(reward).reshape((batch_size, 1)).to(device)
             next_state = torch.FloatTensor(next_state).to(device)
             goal = torch.FloatTensor(goal).to(device)
@@ -105,12 +104,38 @@ class DIOL:
             done = torch.FloatTensor(done).reshape((batch_size, 1)).to(device)
 
             # calculate "option value upon arrival"
-            unchanged_next_option_values = self.target_optor(state, goal).gather(1, option)
-            maximal_next_option_values = self.target_optor(state, goal).max(1)[0].view(batch_size, 1)
-            next_option_values = option_done * unchanged_next_option_values + (1 - option_done) * maximal_next_option_values
+            with torch.no_grad():
+                unchanged_next_option_values = self.target_optor(next_state, goal).gather(1, option)
+                maximal_next_option_values = self.target_optor(next_state, goal).max(1)[0].view(batch_size, 1)
+                next_option_values = (
+                    option_done * unchanged_next_option_values + (1 - option_done) * maximal_next_option_values
+                )
 
-            
+                unchanged_next_option_values_2 = self.target_optor_2(next_state, goal).gather(1, option)
+                maximal_next_option_values_2 = self.target_optor_2(next_state, goal).max(1)[0].view(batch_size, 1)
+                next_option_values_2 = (
+                    option_done * unchanged_next_option_values_2
+                    + (1 - option_done) * maximal_next_option_values_2
+                )
 
+            next_option_values = torch.min(next_option_values, next_option_values_2)
+            target_option_values = reward + done * self.gamma * next_option_values
+            """To do : set clip range"""
+            # target_option_values = torch.clamp(target_option_values, self.opt_clip_value, -0.0)
+
+            self.optor_optimizer.zero_grad()
+            estimated_option_values = self.target_optor(state, goal).gather(1, option)
+            loss = F.smooth_l1_loss(estimated_option_values, target_option_values.detach())
+            loss.backward()
+            self.optor_optimizer.step()
+
+            self.optor_optimizer_2.zero_grad()
+            estimated_option_values_2 = self.target_optor_2(state, goal).gather(1, option)
+            loss_2 = F.smooth_l1_loss(estimated_option_values_2, target_option_values.detach())
+            loss_2.backward()
+            self.optor_optimizer_2.step()
+
+            self.soft_update()
 
     def save(self, directory, name):
         torch.save(self.target_optor.state_dict(), "%s/%s_optor.pth" % (directory, name))
