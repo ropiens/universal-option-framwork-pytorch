@@ -49,7 +49,8 @@ def train():
     exploration_state_noise = np.array([0.02, 0.01])
 
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
-    threshold = np.array([0.01, 0.02])  # threshold value to check if goal state is achieved
+    threshold = np.array([0.03, 1.0])  # threshold value to check if goal state is achieved
+    # (not considering velocity)
 
     # DDPG & DIOL parameters:
     gamma = 0.95  # discount factor for future rewards
@@ -71,6 +72,7 @@ def train():
 
     # creating UOF agent and setting parameters
     agent = UOF(
+        env,
         state_dim,
         option_dim,
         action_dim,
@@ -95,7 +97,7 @@ def train():
 
         state = env.reset()
         # collecting experience in environment
-        last_state, done = agent.run_UOF(env, state, goal_state, option_dim)
+        last_state, done = agent.run_UOF(state, goal_state, option_dim)
 
         if agent.check_goal(last_state, goal_state, threshold):
             print("################ Solved! ################ ")
@@ -104,6 +106,7 @@ def train():
 
         # update all levels
         agent.update(n_iter, batch_size)
+        agent.traning_ep_count += 1
 
         # logging updates:
         log_f.write("{},{}\n".format(i_episode, agent.reward))

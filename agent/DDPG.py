@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import numpy as np
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
@@ -43,8 +45,12 @@ class Critic(nn.Module):
 
 
 class DDPG:
-    def __init__(self, state_dim, action_dim, action_bounds, offset, lr, gamma):
+    def __init__(self, env, state_dim, action_dim, action_bounds, offset, lr, gamma):
+        self.env = env
         self.gamma = gamma
+        self.action_dim = action_dim
+        self.action_max = action_bounds + offset
+        self.action_min = -action_bounds + offset
 
         self.actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
         self.target_actor = Actor(state_dim, action_dim, action_bounds, offset).to(device)
@@ -62,10 +68,28 @@ class DDPG:
 
         self.mseLoss = torch.nn.MSELoss()
 
-    def select_action(self, state, goal):
+        # for exploration
+        self.use_aaes = False
+        self.actor_exploration = None
+        self.noise_deviation = None
+
+    def select_action(self, state, goal, step):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         goal = torch.FloatTensor(goal.reshape(1, -1)).to(device)
-        return self.actor(state, goal).detach().cpu().data.numpy().flatten()
+
+        action = self.actor(state, goal).detach().cpu().data.numpy().flatten()
+
+        # To Do: add test mode
+        if self.env.np_random.uniform(0, 1) < self.actor_exploration(step):
+            action = self.env.np_random.uniform(self.action_min, self.action_max, size=(self.action_dim,))
+        else:
+            if self.use_aaes:
+                deviation = self.noise_deviation * (1 - self.actor_exploration.success_rates[step])
+            else:
+                deviation = self.noise_deviation
+            action += deviation * self.env.np_random.randn(self.action_dim)
+            action = np.clip(action, self.action_min, self.action_max).detach().cpu().data.numpy().flatten()
+        return action
 
     def soft_update(self, tau):
         if tau is None:

@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import numpy as np
-
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -28,8 +26,8 @@ class Mlp(nn.Module):
 
 
 class DIOL:
-    def __init__(self, state_dim, option_dim, lr, gamma, tau):
-
+    def __init__(self, env, state_dim, option_dim, lr, gamma, tau):
+        self.env = env
         self.gamma = gamma
         self.tau = tau
         self.option_num = option_dim
@@ -61,8 +59,8 @@ class DIOL:
 
         option_values = self.target_optor(state, high_level_goal)
 
-        if np.random.uniform(0, 1) < self.optor_exploration(ep):
-            option = np.random.randint(0, self.option_num - 1)
+        if self.env.np_random.uniform(0, 1) < self.optor_exploration(ep):
+            option = self.env.np_random.randint(0, self.option_num - 1)
         else:
             option = torch.argmax(option_values).item()
         return option
@@ -71,8 +69,6 @@ class DIOL:
         if len(buffer.episodes) == 0:
             return
 
-        # modify experiences in hindsight
-        buffer.modify_experiences()
         buffer.store_episode()
 
         if len(buffer) < batch_size:
