@@ -6,13 +6,8 @@ import torch
 
 from .DDPG import DDPG
 from .DIOL import DIOL
-from .utils import (
-    AutoAdjustingConstantChance,
-    ConstantChance,
-    ExpDecayGreedy,
-    HighLevelHindsightReplayBuffer,
-    LowLevelHindsightReplayBuffer,
-)
+from .utils import (AutoAdjustingConstantChance, ConstantChance, ExpDecayGreedy, HighLevelHindsightReplayBuffer,
+                    LowLevelHindsightReplayBuffer)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -74,7 +69,7 @@ class UOF:
         """Intra-Option/Low-Level policies - DDPG + HER (using double critic)"""
         # act, actor refer to low-level policy
         actor_mem_capacity = int(1e5)
-        self.actor = DDPG(env, state_dim, action_dim, action_bounds, action_offset, lr, gamma)
+        self.actor = DDPG(env, state_dim, action_dim, action_bounds, action_offset, lr, gamma, tau)
         self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
 
         # Exploration
@@ -132,17 +127,17 @@ class UOF:
                 next_state, rew, time_done, _ = self.env.step(action)
                 achieved_goal = next_state
 
-                # this is for logging
-                self.reward += rew
-                self.timestep += 1
-
                 # check if goal is achieved
-                subgoal_done = self.check_goal(next_state, subgoal, self.threshold)
-                goal_done = self.check_goal(next_state, goal, self.threshold)
+                subgoal_done = self.check_goal(achieved_goal, subgoal, self.threshold)
+                goal_done = self.check_goal(achieved_goal, goal, self.threshold)
                 act_reward = 0.0 if subgoal_done else -1.0
                 opt_reward = 0.0 if goal_done else -1.0
                 if subgoal_done or goal_done:
                     print(f"subgoal_done: {subgoal_done}, goal_done: {goal_done}")
+
+                # this is for logging
+                self.reward += act_reward
+                self.timestep += 1
 
                 # store experiences
                 self.actor_replay_buffer.store_experience(
@@ -153,7 +148,7 @@ class UOF:
                     next_state,
                     achieved_goal,
                     act_reward,
-                    1 - int(subgoal_done),
+                    int(subgoal_done),
                 )
                 self.optor_replay_buffer.store_experience(
                     new_episode,
@@ -162,9 +157,9 @@ class UOF:
                     option,
                     next_state,
                     achieved_goal,
-                    1 - int(subgoal_done),
+                    int(subgoal_done),
                     opt_reward,
-                    1 - int(time_done),
+                    int(time_done),
                 )
 
                 state = next_state

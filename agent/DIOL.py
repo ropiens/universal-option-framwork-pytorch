@@ -103,18 +103,18 @@ class DIOL:
                 unchanged_next_option_values = self.target_optor(next_state, goal).gather(1, option)
                 maximal_next_option_values = self.target_optor(next_state, goal).max(1)[0].view(batch_size, 1)
                 next_option_values = (
-                    option_done * unchanged_next_option_values + (1 - option_done) * maximal_next_option_values
+                    option_done * maximal_next_option_values + (1 - option_done) * unchanged_next_option_values
                 )
 
                 unchanged_next_option_values_2 = self.target_optor_2(next_state, goal).gather(1, option)
                 maximal_next_option_values_2 = self.target_optor_2(next_state, goal).max(1)[0].view(batch_size, 1)
                 next_option_values_2 = (
-                    option_done * unchanged_next_option_values_2
-                    + (1 - option_done) * maximal_next_option_values_2
+                    option_done * maximal_next_option_values_2
+                    + (1 - option_done) * unchanged_next_option_values_2
                 )
 
             next_option_values = torch.min(next_option_values, next_option_values_2)
-            target_option_values = reward + done * self.gamma * next_option_values
+            target_option_values = reward + (1 - done) * self.gamma * next_option_values
             """To do : set clip range"""
             # target_option_values = torch.clamp(target_option_values, self.opt_clip_value, -0.0)
 
@@ -134,8 +134,8 @@ class DIOL:
 
     def save(self, directory, name):
         torch.save(self.target_optor.state_dict(), "%s/%s_optor.pth" % (directory, name))
-        # torch.save(self.optor_2.state_dict(), "%s/%s_optor_2.pth" % (directory, name))
+        torch.save(self.optor_2.state_dict(), "%s/%s_optor_2.pth" % (directory, name))
 
     def load(self, directory, name):
         self.target_optor.load_state_dict(torch.load("%s/%s_optor.pth" % (directory, name), map_location="cpu"))
-        # self.optor_2.load_state_dict(torch.load("%s/%s_optor_2.pth" % (directory, name), map_location="cpu"))
+        self.optor_2.load_state_dict(torch.load("%s/%s_optor_2.pth" % (directory, name), map_location="cpu"))

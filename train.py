@@ -44,12 +44,8 @@ def train():
     state_clip_low = np.array([-1.2, -0.07])
     state_clip_high = np.array([0.6, 0.07])
 
-    # exploration noise std for primitive action and subgoals
-    exploration_action_noise = np.array([0.1])
-    exploration_state_noise = np.array([0.02, 0.01])
-
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
-    threshold = np.array([0.03, 1.0])  # threshold value to check if goal state is achieved
+    threshold = np.array([0.05, 10.0])  # threshold value to check if goal state is achieved
     # (not considering velocity)
 
     # DDPG & DIOL parameters:
@@ -85,6 +81,7 @@ def train():
         lr,
         gamma,
         tau,
+        use_aaes=False,
     )
 
     # logging file:
@@ -99,18 +96,21 @@ def train():
         # collecting experience in environment
         last_state, done = agent.run_UOF(state, goal_state, option_dim)
 
-        if agent.check_goal(last_state, goal_state, threshold):
-            print("################ Solved! ################ ")
-            name = filename + "_solved"
-            agent.save(directory, name)
-
         # update all levels
         agent.update(n_iter, batch_size)
         agent.traning_ep_count += 1
 
+        # if agent.use_aaes:
+        #     agent.actor.actor_exploration.update_success_rates()
+
         # logging updates:
         log_f.write("{},{}\n".format(i_episode, agent.reward))
         log_f.flush()
+
+        if agent.check_goal(last_state, goal_state, threshold):
+            print("################ Solved! ################ ")
+            name = filename + "_solved"
+            agent.save(directory, name)
 
         if i_episode % save_episode == 0:
             agent.save(directory, filename)
