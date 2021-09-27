@@ -48,6 +48,7 @@ class DDPG:
         self.env = env
         self.gamma = gamma
         self.tau = tau
+        self.clip_value = -env._max_episode_steps
 
         self.action_dim = action_dim
         self.action_max = action_bounds + offset
@@ -146,6 +147,7 @@ class DDPG:
             value_2 = self.target_critic_2(next_state, next_action, goal).detach()
             target_Q = torch.min(value_1, value_2)
             target_Q = reward + ((1 - done) * self.gamma * target_Q)
+            target_Q = torch.clamp(target_Q, self.clip_value, -0.0)
 
             # Optimize Critic:
             critic_loss_1 = self.mseLoss(self.critic_1(state, action, goal), target_Q)
@@ -168,7 +170,7 @@ class DDPG:
             actor_loss.backward()
             self.actor_optimizer.step()
 
-            self.soft_update()
+            self.soft_update(tau=1.0)
 
     def save(self, directory, name):
         torch.save(self.actor.state_dict(), "%s/%s_actor.pth" % (directory, name))

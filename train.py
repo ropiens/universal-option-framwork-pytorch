@@ -33,19 +33,14 @@ def train():
     action_bounds = env.action_space.high[0]
     action_offset = np.array([0.0])
     action_offset = torch.FloatTensor(action_offset.reshape(1, -1)).to(device)
-    action_clip_low = np.array([-1.0 * action_bounds])
-    action_clip_high = np.array([action_bounds])
-
     # state bounds and offset
     state_bounds_np = np.array([0.9, 0.07])
     state_bounds = torch.FloatTensor(state_bounds_np.reshape(1, -1)).to(device)
     state_offset = np.array([-0.3, 0.0])
     state_offset = torch.FloatTensor(state_offset.reshape(1, -1)).to(device)
-    state_clip_low = np.array([-1.2, -0.07])
-    state_clip_high = np.array([0.6, 0.07])
 
     goal_state = np.array([0.48, 0.04])  # final goal state to be achived
-    threshold = np.array([0.05, 10.0])  # threshold value to check if goal state is achieved
+    threshold = np.array([0.05, 1.0])  # threshold value to check if goal state is achieved
     # (not considering velocity)
 
     # DDPG & DIOL parameters:

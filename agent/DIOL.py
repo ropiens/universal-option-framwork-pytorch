@@ -30,6 +30,7 @@ class DIOL:
         self.env = env
         self.gamma = gamma
         self.tau = tau
+        self.clip_value = -100
         self.option_num = option_dim
 
         self.optor = Mlp(state_dim, option_dim).to(device)
@@ -115,8 +116,7 @@ class DIOL:
 
             next_option_values = torch.min(next_option_values, next_option_values_2)
             target_option_values = reward + (1 - done) * self.gamma * next_option_values
-            """To do : set clip range"""
-            # target_option_values = torch.clamp(target_option_values, self.opt_clip_value, -0.0)
+            target_option_values = torch.clamp(target_option_values, self.clip_value, -0.0)
 
             self.optor_optimizer.zero_grad()
             estimated_option_values = self.target_optor(state, goal).gather(1, option)
@@ -130,7 +130,7 @@ class DIOL:
             loss_2.backward()
             self.optor_optimizer_2.step()
 
-            self.soft_update()
+            self.soft_update(tau=1.0)
 
     def save(self, directory, name):
         torch.save(self.target_optor.state_dict(), "%s/%s_optor.pth" % (directory, name))
