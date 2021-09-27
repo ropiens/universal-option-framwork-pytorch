@@ -130,7 +130,7 @@ class DIOL:
             loss_2.backward()
             self.optor_optimizer_2.step()
 
-            self.soft_update(tau=1.0)
+            self.soft_update()
 
     def save(self, directory, name):
         torch.save(self.target_optor.state_dict(), "%s/%s_optor.pth" % (directory, name))

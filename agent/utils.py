@@ -112,7 +112,7 @@ class LowLevelHindsightReplayBuffer(EpisodeWiseReplayBuffer):
                     r = ep[tr].reward
                     d = ep[tr].done
                     if tr == ind:
-                        modified_ep.append(self.Transition(s, dg, a, ns, ag, 0.0, 0))
+                        modified_ep.append(self.Transition(s, dg, a, ns, ag, 0.0, 1))
                     else:
                         modified_ep.append(self.Transition(s, dg, a, ns, ag, r, d))
                 self.episodes.append(modified_ep)

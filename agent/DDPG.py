@@ -82,15 +82,15 @@ class DDPG:
         action = self.target_actor(state, goal).detach().cpu().data.numpy().flatten()
 
         # To Do: add test mode
-        if self.env.np_random.uniform(0, 1) < self.actor_exploration(step):
-            action = self.env.np_random.uniform(self.action_min, self.action_max, size=(self.action_dim,))
-        else:
-            if self.use_aaes:
-                deviation = self.noise_deviation * (1 - self.actor_exploration.success_rates[step])
-            else:
-                deviation = self.noise_deviation
-            action += deviation * self.env.np_random.randn(self.action_dim)
-            action = np.clip(action, self.action_min, self.action_max).detach().cpu().data.numpy().flatten()
+        # if self.env.np_random.uniform(0, 1) < self.actor_exploration(step):
+        #     action = self.env.np_random.uniform(self.action_min, self.action_max, size=(self.action_dim,))
+        # else:
+        #     if self.use_aaes:
+        #         deviation = self.noise_deviation * (1 - self.actor_exploration.success_rates[step])
+        #     else:
+        #         deviation = self.noise_deviation
+        #     action += deviation * self.env.np_random.randn(self.action_dim)
+        #     action = np.clip(action, self.action_min, self.action_max).detach().cpu().data.numpy().flatten()
         return action
 
     def soft_update(self, tau=None):
@@ -170,7 +170,7 @@ class DDPG:
             actor_loss.backward()
             self.actor_optimizer.step()
 
-            self.soft_update(tau=1.0)
+            self.soft_update()
 
     def save(self, directory, name):
         torch.save(self.actor.state_dict(), "%s/%s_actor.pth" % (directory, name))
