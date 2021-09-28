@@ -101,7 +101,7 @@ class UOF:
         return True
 
     def set_subgoal(self, option_ind, option_num):
-        subgoals = np.linspace(-1.1, 0.5, option_num)
+        subgoals = np.linspace(-1.1, 0.45, option_num)
         return np.array([subgoals[option_ind], 0.04])
 
     def run_UOF(self, state, goal, option_num=5):

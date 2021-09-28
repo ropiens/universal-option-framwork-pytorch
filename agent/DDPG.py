@@ -162,7 +162,7 @@ class DDPG:
 
             # Compute actor loss:
             new_value_1 = self.critic_1(state, self.actor(state, goal), goal)
-            new_value_2 = self.critic_1(state, self.actor(state, goal), goal)
+            new_value_2 = self.critic_2(state, self.actor(state, goal), goal)
             actor_loss = -torch.min(new_value_1, new_value_2).mean()
 
             # Optimize the actor
