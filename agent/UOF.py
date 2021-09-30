@@ -114,6 +114,7 @@ class UOF:
         while not time_done:
             subgoal_done = False
             new_option = True
+            self.actor.plt_clear()
 
             # get subgoal from optor
             option = self.optor.select_option(state, goal, ep=self.traning_ep_count)

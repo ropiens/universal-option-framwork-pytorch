@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import matplotlib.pyplot as plt
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
@@ -75,22 +77,39 @@ class DDPG:
         self.actor_exploration = None
         self.noise_deviation = None
 
+        # policy plot tool for exploration debugging
+        self.plt = plt.ion()
+        self.t = 0
+
+    def plt_clear(self):
+        plt.cla()
+        plt.ylim(-1.0,1.0)
+
     def select_action(self, state, goal, step):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         goal = torch.FloatTensor(goal.reshape(1, -1)).to(device)
-
+        print("----")
         action = self.target_actor(state, goal).detach().cpu().data.numpy().flatten()
+        action_orig = torch.clone(self.target_actor(state, goal)).detach().cpu().data.numpy().flatten()
+        print(f"orig: {action}")
 
         # To Do: add test mode
-        # if self.env.np_random.uniform(0, 1) < self.actor_exploration(step):
-        #     action = self.env.np_random.uniform(self.action_min, self.action_max, size=(self.action_dim,))
-        # else:
-        #     if self.use_aaes:
-        #         deviation = self.noise_deviation * (1 - self.actor_exploration.success_rates[step])
-        #     else:
-        #         deviation = self.noise_deviation
-        #     action += deviation * self.env.np_random.randn(self.action_dim)
-        #     action = np.clip(action, self.action_min, self.action_max).detach().cpu().data.numpy().flatten()
+        if self.env.np_random.uniform(0, 1) < self.actor_exploration(step):
+            action = self.env.np_random.uniform(self.action_min, self.action_max, size=(self.action_dim,))
+        else:
+            if self.use_aaes:
+                deviation = self.noise_deviation * (1 - self.actor_exploration.success_rates[step])
+            else:
+                deviation = self.noise_deviation
+            dev = deviation * self.env.np_random.randn(self.action_dim)
+            action += dev; print(dev)
+            action = np.clip(action, self.action_min, self.action_max).detach().cpu().data.numpy().flatten()
+        print(f"after: {action}")
+        diff = action-action_orig
+        print(f"diff: {diff}")
+        plt.scatter(self.t, action[0])
+        plt.pause(0.01)
+        self.t +=1
         return action
 
     def soft_update(self, tau=None):
