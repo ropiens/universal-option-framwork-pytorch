@@ -45,10 +45,14 @@ def train():
 
     # DDPG & DIOL parameters:
     gamma = 0.95  # discount factor for future rewards
-    tau = 0.1  # target soft update rate
+    tau = 0.15  # target soft update rate
     n_iter = 100  # update policy n_iter times in one DDPG update
     batch_size = 100  # num of transitions sampled from replay buffer
     lr = 0.001
+
+    # time horizon to step with a subgoal
+    H = 100
+    testing_peoriod = 10
 
     # save trained models
     directory = "{}/preTrained/{}/".format(os.getcwd(), env_name)
@@ -71,12 +75,11 @@ def train():
         threshold,
         action_bounds,
         action_offset,
-        state_bounds,
-        state_offset,
         lr,
         gamma,
         tau,
-        use_aaes=False,
+        H,
+        use_aaes=True,
     )
 
     # logging file:
@@ -87,16 +90,21 @@ def train():
         agent.reward = 0
         agent.timestep = 0
 
-        state = env.reset()
+        state = env.reset(test=False)
         # collecting experience in environment
         last_state, done = agent.run_UOF(state, goal_state, option_dim)
 
         # update all levels
         agent.update(n_iter, batch_size)
-        agent.traning_ep_count += 1
+        agent.training_ep_count += 1
 
-        # if agent.use_aaes:
-        #     agent.actor.actor_exploration.update_success_rates()
+        if agent.training_ep_count % testing_peoriod == 0:
+            state = env.reset(test=True)
+            # collecting experience in environment
+            last_state, done = agent.run_UOF(state, goal_state, option_dim)
+
+            if agent.actor.use_aaes:
+                agent.actor.actor_exploration.update_success_rates()
 
         # logging updates:
         log_f.write("{},{}\n".format(i_episode, agent.reward))

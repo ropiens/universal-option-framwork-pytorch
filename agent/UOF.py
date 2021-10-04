@@ -6,8 +6,13 @@ import torch
 
 from .DDPG import DDPG
 from .DIOL import DIOL
-from .utils import (AutoAdjustingConstantChance, ConstantChance, ExpDecayGreedy, HighLevelHindsightReplayBuffer,
-                    LowLevelHindsightReplayBuffer)
+from .utils import (
+    AutoAdjustingConstantChance,
+    ConstantChance,
+    ExpDecayGreedy,
+    HighLevelHindsightReplayBuffer,
+    LowLevelHindsightReplayBuffer,
+)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -50,14 +55,14 @@ class UOF:
         threshold,
         action_bounds,
         action_offset,
-        state_bounds,
-        state_offset,
         lr,
         gamma,
         tau,
+        H,
         use_aaes=True,
     ):
         self.env = env
+        self.H = H
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
@@ -87,7 +92,7 @@ class UOF:
         self.threshold = threshold
         self.render = render
 
-        self.traning_ep_count = 0
+        self.training_ep_count = 0
 
         # logging parameters
         self.goals = [None]
@@ -117,9 +122,9 @@ class UOF:
             self.actor.plt_clear()
 
             # get subgoal from optor
-            option = self.optor.select_option(state, goal, ep=self.traning_ep_count)
+            option = self.optor.select_option(state, goal, ep=self.training_ep_count)
             subgoal = self.set_subgoal(option, option_num)
-            while (not time_done) and (not subgoal_done):
+            for _ in range(self.H):
                 if self.render:
                     self.env.unwrapped.render_goal(goal, subgoal)
 
@@ -162,10 +167,12 @@ class UOF:
                     opt_reward,
                     int(time_done),
                 )
-
                 state = next_state
                 new_episode = False
                 new_option = False
+
+                if subgoal_done or time_done:
+                    break
 
         return next_state, time_done
 

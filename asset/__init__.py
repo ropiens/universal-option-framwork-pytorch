@@ -6,7 +6,7 @@ from asset.pendulum import PendulumEnv
 register(
     id="MountainCarContinuous-h-v1",
     entry_point="asset:Continuous_MountainCarEnv",
-    max_episode_steps=100,
+    max_episode_steps=400,
 )
 
 register(
