@@ -1,8 +1,6 @@
 # universal-option-framwork-pytorch
 PyTorch implementation of Universal Option Framework (UOF) for OpenAI gym environments
 
-*STATUS : `HOLDING`*
-
 This repository is one of project deliverables for [project-sandwich-man](https://github.com/ropiens/project-sandwich-man), which project is especially focused on hierarchical stacking blocks. If you see errors or missing, please send me an email or a pull request.
 
 
