@@ -1,18 +1,18 @@
-import numpy as np
-import torch
 import time
 from collections import namedtuple
 
-from .utils import (
-    AutoAdjustingConstantChance,
-    ConstantChance,
-    LowLevelHindsightReplayBuffer,
-    HighLevelHindsightReplayBuffer,
-    ExpDecayGreedy,
-)
+import numpy as np
+import torch
 
 from .DDPG import DDPG
 from .DIOL import DIOL
+from .utils import (
+    AutoAdjustingConstantChance,
+    ConstantChance,
+    ExpDecayGreedy,
+    HighLevelHindsightReplayBuffer,
+    LowLevelHindsightReplayBuffer,
+)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -47,6 +47,7 @@ ACT_Tr = namedtuple(
 class UOF:
     def __init__(
         self,
+        env,
         state_dim,
         option_dim,
         action_dim,
@@ -54,36 +55,44 @@ class UOF:
         threshold,
         action_bounds,
         action_offset,
-        state_bounds,
-        state_offset,
         lr,
         gamma,
         tau,
+        H,
+        use_aaes=True,
     ):
+        self.env = env
+        self.H = H
 
         """Inter-Option/High-Level policies - DIOL"""
         # opt, optor refer to high-level policy
         optor_mem_capacity = int(1e5)
-        self.optor = DIOL(state_dim, option_dim, lr, gamma, tau)
+        self.optor = DIOL(env, state_dim, option_dim, lr, gamma, tau)
         self.optor_replay_buffer = HighLevelHindsightReplayBuffer(optor_mem_capacity, OPT_Tr)
         self.optor.optor_exploration = ExpDecayGreedy(start=1.0, end=0.02, decay=30000)
 
-        """Intra-Option/Low-Level policies - DDPG + HER"""
+        """Intra-Option/Low-Level policies - DDPG + HER (using double critic)"""
         # act, actor refer to low-level policy
         actor_mem_capacity = int(1e5)
-        self.actor = DDPG(state_dim, action_dim, action_bounds, action_offset, lr, gamma)
+        self.actor = DDPG(env, state_dim, action_dim, action_bounds, action_offset, lr, gamma, tau)
         self.actor_replay_buffer = LowLevelHindsightReplayBuffer(actor_mem_capacity, ACT_Tr)
-        """To Do: add AAES Exploration"""
-        # if not self.aaes_exploration:
-        #     self.actor_exploration = ConstantChance()
-        # else:
-        #     self.actor_exploration = AutoAdjustingConstantChance()
+
+        # Exploration
+        self.actor.noise_deviation = 0.05
+        if not use_aaes:
+            self.actor.actor_exploration = ConstantChance(chance=0.2)
+            self.actor.use_aaes = False
+        else:
+            self.actor.actor_exploration = AutoAdjustingConstantChance(goal_num=option_dim, chance=0.2, tau=0.5)
+            self.actor.use_aaes = True
 
         # set some parameters
         self.action_dim = action_dim
         self.state_dim = state_dim
         self.threshold = threshold
         self.render = render
+
+        self.training_ep_count = 0
 
         # logging parameters
         self.goals = [None]
@@ -97,10 +106,10 @@ class UOF:
         return True
 
     def set_subgoal(self, option_ind, option_num):
-        subgoals = np.linspace(-1.1, 0.5, option_num)
+        subgoals = np.linspace(-1.1, 0.45, option_num)
         return np.array([subgoals[option_ind], 0.04])
 
-    def run_UOF(self, env, state, goal, option_num=5):
+    def run_UOF(self, state, goal, option_num=5):
         next_state = None
         time_done = False
         new_episode = True
@@ -110,30 +119,42 @@ class UOF:
         while not time_done:
             subgoal_done = False
             new_option = True
+            self.actor.plt_clear()
 
             # get subgoal from optor
-            option = self.optor.select_option(state, goal)
+            option = self.optor.select_option(state, goal, ep=self.training_ep_count)
             subgoal = self.set_subgoal(option, option_num)
-            print(subgoal)
-            while (not time_done) and (not subgoal_done):
+            for _ in range(self.H):
                 if self.render:
-                    env.unwrapped.render_goal(goal, subgoal)
+                    self.env.unwrapped.render_goal(goal, subgoal)
 
                 # take action from actor
-                action = self.actor.select_action(state, subgoal)
-                next_state, act_reward, time_done, _ = env.step(action)
+                action = self.actor.select_action(state, subgoal, option)
+                next_state, rew, time_done, _ = self.env.step(action)
+                achieved_goal = next_state
+
+                # check if goal is achieved
+                subgoal_done = self.check_goal(achieved_goal, subgoal, self.threshold)
+                goal_done = self.check_goal(achieved_goal, goal, self.threshold)
+                act_reward = 0.0 if subgoal_done else -1.0
+                opt_reward = 0.0 if goal_done else -1.0
+                if subgoal_done or goal_done:
+                    print(f"subgoal_done: {subgoal_done}, goal_done: {goal_done}")
 
                 # this is for logging
                 self.reward += act_reward
                 self.timestep += 1
 
-                # check if goal is achieved
-                subgoal_done = self.check_goal(next_state, subgoal, self.threshold)
-                opt_reward = 0.0 if subgoal_done else -1.0
-
                 # store experiences
                 self.actor_replay_buffer.store_experience(
-                    new_option, state, subgoal, action, next_state, next_state, act_reward, 1 - int(subgoal_done)
+                    new_option,
+                    state,
+                    subgoal,
+                    action,
+                    next_state,
+                    achieved_goal,
+                    act_reward,
+                    int(subgoal_done),
                 )
                 self.optor_replay_buffer.store_experience(
                     new_episode,
@@ -141,15 +162,17 @@ class UOF:
                     goal,
                     option,
                     next_state,
-                    next_state,
-                    1 - int(subgoal_done),
+                    achieved_goal,
+                    int(subgoal_done),
                     opt_reward,
-                    1 - int(time_done),
+                    int(time_done),
                 )
-
                 state = next_state
                 new_episode = False
                 new_option = False
+
+                if subgoal_done or time_done:
+                    break
 
         return next_state, time_done
 

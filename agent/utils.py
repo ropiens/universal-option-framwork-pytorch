@@ -1,10 +1,10 @@
 # origianl code : https://github.com/IanYangChina/UOF-paper-code/blob/main/agent/utils/replay_buffer.py
 
+import math as M
 import random as R
-import numpy as np
 from copy import deepcopy as dcp
 
-import math as M
+import numpy as np
 
 
 class ExpDecayGreedy(object):
@@ -112,7 +112,7 @@ class LowLevelHindsightReplayBuffer(EpisodeWiseReplayBuffer):
                     r = ep[tr].reward
                     d = ep[tr].done
                     if tr == ind:
-                        modified_ep.append(self.Transition(s, dg, a, ns, ag, 0.0, 0))
+                        modified_ep.append(self.Transition(s, dg, a, ns, ag, 0.0, 1))
                     else:
                         modified_ep.append(self.Transition(s, dg, a, ns, ag, r, d))
                 self.episodes.append(modified_ep)
@@ -164,13 +164,12 @@ class HighLevelHindsightReplayBuffer(EpisodeWiseReplayBuffer):
                             ns = ep[tr].next_state
                             op_d = ep[tr].option_done
                             ag = ep[tr].achieved_goal
-                            ts = ep[tr].timesteps
                             r = ep[tr].reward
                             d = ep[tr].done
                             if tr == ind:
-                                modified_ep.append(self.Transition(s, dg, o, ns, ag, op_d, ts, 0.0, d))
+                                modified_ep.append(self.Transition(s, dg, o, ns, ag, op_d, 0.0, d))
                             else:
-                                modified_ep.append(self.Transition(s, dg, o, ns, ag, op_d, ts, r, d))
+                                modified_ep.append(self.Transition(s, dg, o, ns, ag, op_d, r, d))
                         self.episodes.append(dcp(modified_ep))
                         count += 1
                         if count >= self.modified_ep_num:
