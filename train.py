@@ -79,7 +79,7 @@ def train():
         gamma,
         tau,
         H,
-        use_aaes=True,
+        use_aaes=False,
     )
 
     # logging file:
@@ -103,8 +103,8 @@ def train():
             # collecting experience in environment
             last_state, done = agent.run_UOF(state, goal_state, option_dim)
 
-            if agent.actor.use_aaes:
-                agent.actor.actor_exploration.update_success_rates()
+            # if agent.actor.use_aaes:
+            #     agent.actor.actor_exploration.update_success_rates()
 
         # logging updates:
         log_f.write("{},{}\n".format(i_episode, agent.reward))
